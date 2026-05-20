@@ -37,6 +37,34 @@ cargo check --manifest-path src-tauri/Cargo.toml  # 仅检查 Rust 语法
 - `src-tauri/target/debug/bundle/msi/` — MSI 安装包
 - `src-tauri/target/debug/bundle/nsis/` — NSIS 安装包
 
+## 构建流程
+
+`cargo tauri build --debug` 内部执行顺序：
+
+1. `npm run build`（`beforeBuildCommand`）→ Vite 输出到 `dist/`
+2. `cargo build`（Rust 编译）→ `generate_context!()` 宏嵌入 `dist/` 到二进制
+3. WiX / NSIS 打包 → 生成 MSI + NSIS 安装包
+
+**构建前检查清单：**
+
+```bash
+# 1. 确认工具链
+rustup show active-toolchain    # 必须 msvc。不是则 rustup default stable-x86_64-pc-windows-msvc
+
+# 2. 确认前端能过
+npm run build                   # tsc + vite build，无报错即可
+
+# 3. 确认 Rust 能过
+cargo check --manifest-path src-tauri/Cargo.toml
+```
+
+**常见构建失败：**
+
+- **`拒绝访问 (os error 5)`** — exe 正在运行被锁定。先 `Get-Process -Name "mutsumi-launcher" \| Stop-Process -Force` 再构建
+- **`link.exe not found`** — 工具链不是 MSVC。`rustup default stable-x86_64-pc-windows-msvc`
+- **`edition2024` 错误** — Rust 版本太旧。`rustup update`
+- 构建耗时约 2 分钟（首次完整编译），增量编译 ~15s
+
 ## 架构
 
 ```

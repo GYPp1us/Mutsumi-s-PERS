@@ -79,7 +79,7 @@ export function ProjectList() {
         }}
       />
 
-      <div style={{ flex: 1, overflowY: "auto", padding: "4px 0" }}>
+      <div style={{ flex: 1, minHeight: 0, overflowY: "auto", padding: "4px 0" }}>
         <div
           onClick={() => selectProject(null)}
           style={{

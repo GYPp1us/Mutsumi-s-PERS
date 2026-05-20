@@ -2,33 +2,32 @@ import { create } from "zustand";
 import type { Project, Settings } from "./tauri";
 import * as api from "./tauri";
 
-type NavView = "home" | "projects" | "templates" | "git" | "settings";
-
 interface AppStore {
   projects: Project[];
   settings: Settings | null;
   selectedProjectId: string | null;
-  navView: NavView;
   theme: "dark" | "light";
   locale: "zh" | "en";
+  showSettings: boolean;
   loadProjects: () => Promise<void>;
   loadSettings: () => Promise<void>;
   addProject: (name: string, path: string) => Promise<void>;
   removeProject: (id: string) => Promise<void>;
   toggleStar: (id: string, starred: boolean) => Promise<void>;
   selectProject: (id: string | null) => void;
-  setNavView: (view: NavView) => void;
   toggleTheme: () => void;
   setLocale: (locale: "zh" | "en") => void;
+  toggleSettings: () => void;
+  hideSettings: () => void;
 }
 
 export const useAppStore = create<AppStore>((set, get) => ({
   projects: [],
   settings: null,
   selectedProjectId: null,
-  navView: "projects",
   theme: (localStorage.getItem("mutsumi-theme") as "dark" | "light") || "dark",
   locale: (localStorage.getItem("mutsumi-locale") as "zh" | "en") || "en",
+  showSettings: false,
 
   loadProjects: async () => {
     try {
@@ -53,7 +52,6 @@ export const useAppStore = create<AppStore>((set, get) => ({
     set({
       projects: [...get().projects, project],
       selectedProjectId: project.id,
-      navView: "projects",
     });
   },
 
@@ -77,7 +75,6 @@ export const useAppStore = create<AppStore>((set, get) => ({
   },
 
   selectProject: (id) => set({ selectedProjectId: id }),
-  setNavView: (view) => set({ navView: view }),
 
   toggleTheme: () => {
     const next = get().theme === "dark" ? "light" : "dark";
@@ -90,4 +87,7 @@ export const useAppStore = create<AppStore>((set, get) => ({
     localStorage.setItem("mutsumi-locale", locale);
     set({ locale });
   },
+
+  toggleSettings: () => set({ showSettings: !get().showSettings }),
+  hideSettings: () => set({ showSettings: false }),
 }));

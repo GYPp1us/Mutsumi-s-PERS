@@ -24,7 +24,7 @@ export function HomeView() {
   const starred = projects.filter((p) => p.starred);
 
   return (
-    <>
+    <div style={{ display: "flex", flexDirection: "column", gap: 18 }}>
       <h2 style={{ fontSize: 20, fontWeight: 600, color: "var(--color-text)", margin: 0 }}>
         {t.homeTitle}
       </h2>
@@ -84,6 +84,6 @@ export function HomeView() {
           </div>
         )}
       </div>
-    </>
+    </div>
   );
 }
