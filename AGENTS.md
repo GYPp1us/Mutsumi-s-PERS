@@ -89,6 +89,21 @@ React 组件 → Zustand (src/lib/store.ts) → tauri.ts (invoke IPC) → Rust C
 - **全直角**：`src/index.css` 有 `border-radius: 0 !important`
 - **窗口默认隐藏**：`tauri.conf.json` 中 `visible: false`，通过托盘/快捷键唤醒
 
+## 分支策略
+
+- `dev` — 开发分支，日常提交在这里
+- `master` — 发布分支，通过 PR 从 dev 合并
+- 发布流程：`dev` 开发 → PR → `master` → 打 `v*` tag → CI 自动构建发布
+
+## GitHub Actions（`.github/workflows/`）
+
+| 文件 | 触发条件 | 内容 |
+|------|---------|------|
+| `ci.yml` | push / PR → master | 前端：`tsc -b` + `vite build`（ubuntu）。Rust：`cargo check`（windows-msvc） |
+| `build.yml` | PR → master / `v*` tag / 手动 | 完整 Tauri 构建，产物上传为 Artifact |
+
+**`tauri-apps/tauri-action@v0` 依赖 `package.json` 中的 `"tauri": "tauri"` npm 脚本**，缺失会导致构建失败。
+
 ## 文件职责速查
 
 | 文件 | 职责 |
