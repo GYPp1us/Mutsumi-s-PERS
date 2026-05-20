@@ -68,7 +68,7 @@ export function SettingsView() {
   };
 
   return (
-    <>
+    <div style={{ display: "flex", flexDirection: "column", gap: 18 }}>
       <h2 style={{ fontSize: 20, fontWeight: 600, color: "var(--color-text)", margin: 0 }}>
         {t.settingsTitle}
       </h2>
@@ -180,6 +180,6 @@ export function SettingsView() {
       >
         {t.saveSettings}
       </button>
-    </>
+    </div>
   );
 }

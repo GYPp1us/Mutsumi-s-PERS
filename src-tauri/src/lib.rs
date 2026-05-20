@@ -55,6 +55,13 @@ fn setup_tray(app: &tauri::AppHandle) -> Result<(), Box<dyn std::error::Error>> 
     Ok(())
 }
 
+#[tauri::command]
+fn hide_window(app: tauri::AppHandle) {
+    if let Some(w) = app.get_webview_window("main") {
+        let _ = w.hide();
+    }
+}
+
 fn setup_shortcut(app: &tauri::AppHandle) -> Result<(), Box<dyn std::error::Error>> {
     let shortcut = Shortcut::new(Some(Modifiers::ALT), Code::Space);
 
@@ -102,6 +109,7 @@ pub fn run() {
             Ok(())
         })
         .invoke_handler(tauri::generate_handler![
+            hide_window,
             commands::projects::list_projects,
             commands::projects::add_project,
             commands::projects::remove_project,

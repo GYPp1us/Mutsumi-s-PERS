@@ -1,3 +1,4 @@
+import { useState } from "react";
 import { useAppStore } from "../lib/store";
 import { useT } from "../lib/i18n";
 import * as api from "../lib/tauri";
@@ -36,7 +37,7 @@ export function ProjectDetail() {
   };
 
   return (
-    <>
+    <div style={{ display: "flex", flexDirection: "column", gap: 18, minHeight: 0 }}>
       <div style={{ display: "flex", justifyContent: "space-between", alignItems: "flex-start" }}>
         <div>
           <h2 style={{ fontSize: 20, fontWeight: 600, color: "var(--color-text)", margin: 0 }}>
@@ -57,6 +58,7 @@ export function ProjectDetail() {
         </button>
       </div>
 
+      {/* Launch */}
       <div style={cardStyle}>
         <div style={sectionLabel}>{t.launchEnv}</div>
         <div style={{ display: "flex", gap: 8, flexWrap: "wrap" }}>
@@ -84,6 +86,13 @@ export function ProjectDetail() {
         </div>
       </div>
 
+      {/* Git */}
+      <GitSection projectPath={project.path} />
+
+      {/* Template */}
+      <TemplateSection projectId={project.id} projectPath={project.path} />
+
+      {/* Tags + Info */}
       <div style={{ display: "flex", gap: 12 }}>
         <div style={{ ...cardStyle, flex: 1 }}>
           <div style={sectionLabel}>{t.tags}</div>
@@ -108,6 +117,7 @@ export function ProjectDetail() {
         </div>
       </div>
 
+      {/* Activity */}
       {project.activity_log.length > 0 && (
         <div style={cardStyle}>
           <div style={sectionLabel}>{t.recentActivity}</div>
@@ -118,6 +128,108 @@ export function ProjectDetail() {
           ))}
         </div>
       )}
-    </>
+    </div>
+  );
+}
+
+function GitSection({ projectPath }: { projectPath: string }) {
+  const t = useT();
+  const [status, setStatus] = useState<string>("");
+  const [output, setOutput] = useState<string>("");
+
+  const runGit = async (op: string, fn: () => Promise<string>) => {
+    setStatus(t.runningGit(op));
+    setOutput("");
+    try {
+      const result = await fn();
+      setOutput(result || t.done);
+    } catch (e) {
+      setOutput(String(e));
+    }
+    setStatus("");
+  };
+
+  return (
+    <div style={cardStyle}>
+      <div style={sectionLabel}>{t.navGit}</div>
+      <div style={{ display: "flex", gap: 8, flexWrap: "wrap", marginBottom: status ? 8 : 0 }}>
+        {([
+          [t.fetch, () => api.gitFetch(projectPath)],
+          [t.pull, () => api.gitPull(projectPath)],
+          [t.push, () => api.gitPush(projectPath)],
+          [t.status, () => api.gitStatus(projectPath)],
+        ] as const).map(([label, fn]) => (
+          <button
+            key={label}
+            onClick={() => runGit(label, fn)}
+            style={{
+              background: "var(--color-card)", color: "var(--color-text-secondary)",
+              border: "none", padding: "6px 14px", fontSize: 12, cursor: "pointer",
+            }}
+          >
+            {label}
+          </button>
+        ))}
+      </div>
+      {status && <div style={{ fontSize: 11, color: "var(--color-text-muted)", marginBottom: 8 }}>{status}</div>}
+      {output && (
+        <pre style={{
+          fontSize: 11, color: "var(--color-text-secondary)",
+          whiteSpace: "pre-wrap", margin: 0, fontFamily: "Consolas, monospace",
+        }}>
+          {output}
+        </pre>
+      )}
+    </div>
+  );
+}
+
+function TemplateSection({ projectId, projectPath }: { projectId: string; projectPath: string }) {
+  const t = useT();
+  const projects = useAppStore((s) => s.projects);
+  const [status, setStatus] = useState<string>("");
+
+  const handleInject = async () => {
+    setStatus(t.injecting);
+    try {
+      const result = await api.injectTemplate("", projectPath, [], "skip");
+      setStatus(t.injectedFiles(result.length, projects.find((p) => p.id === projectId)?.name || ""));
+    } catch (e) {
+      setStatus(t.error(e));
+    }
+  };
+
+  return (
+    <div style={cardStyle}>
+      <div style={sectionLabel}>
+        {t.navTemplates}
+      </div>
+      <div style={{ fontSize: 11, color: "var(--color-text-muted)", marginBottom: 10 }}>
+        {t.templateHelp}
+      </div>
+
+      <div style={{
+        background: "var(--color-hover)", padding: "10px 14px", marginBottom: 10,
+      }}>
+        <div style={{ color: "var(--color-text)" }}>&#10064; {t.defaultTemplateName}</div>
+        <div style={{ fontSize: 11, color: "var(--color-text-muted)" }}>
+          {t.general} &middot; {t.defaultTemplateDesc}
+        </div>
+      </div>
+
+      <button
+        onClick={handleInject}
+        style={{
+          background: "var(--color-primary)", color: "var(--color-primary-fg)",
+          border: "none", padding: "8px 16px", fontSize: 12, cursor: "pointer",
+        }}
+      >
+        {t.injectTemplate}
+      </button>
+
+      {status && (
+        <div style={{ fontSize: 12, color: "var(--color-text-secondary)", marginTop: 10 }}>{status}</div>
+      )}
+    </div>
   );
 }

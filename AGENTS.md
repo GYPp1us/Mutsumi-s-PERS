@@ -37,6 +37,34 @@ cargo check --manifest-path src-tauri/Cargo.toml  # 仅检查 Rust 语法
 - `src-tauri/target/debug/bundle/msi/` — MSI 安装包
 - `src-tauri/target/debug/bundle/nsis/` — NSIS 安装包
 
+## 构建流程
+
+`cargo tauri build --debug` 内部执行顺序：
+
+1. `npm run build`（`beforeBuildCommand`）→ Vite 输出到 `dist/`
+2. `cargo build`（Rust 编译）→ `generate_context!()` 宏嵌入 `dist/` 到二进制
+3. WiX / NSIS 打包 → 生成 MSI + NSIS 安装包
+
+**构建前检查清单：**
+
+```bash
+# 1. 确认工具链
+rustup show active-toolchain    # 必须 msvc。不是则 rustup default stable-x86_64-pc-windows-msvc
+
+# 2. 确认前端能过
+npm run build                   # tsc + vite build，无报错即可
+
+# 3. 确认 Rust 能过
+cargo check --manifest-path src-tauri/Cargo.toml
+```
+
+**常见构建失败：**
+
+- **`拒绝访问 (os error 5)`** — exe 正在运行被锁定。先 `Get-Process -Name "mutsumi-launcher" \| Stop-Process -Force` 再构建
+- **`link.exe not found`** — 工具链不是 MSVC。`rustup default stable-x86_64-pc-windows-msvc`
+- **`edition2024` 错误** — Rust 版本太旧。`rustup update`
+- 构建耗时约 2 分钟（首次完整编译），增量编译 ~15s
+
 ## 架构
 
 ```
@@ -60,6 +88,21 @@ React 组件 → Zustand (src/lib/store.ts) → tauri.ts (invoke IPC) → Rust C
 - **主题**：CSS 变量在 `src/index.css` 的 `@theme` 块定义，via `data-theme="dark|light"`
 - **全直角**：`src/index.css` 有 `border-radius: 0 !important`
 - **窗口默认隐藏**：`tauri.conf.json` 中 `visible: false`，通过托盘/快捷键唤醒
+
+## 分支策略
+
+- `dev` — 开发分支，日常提交在这里
+- `master` — 发布分支，通过 PR 从 dev 合并
+- 发布流程：`dev` 开发 → PR → `master` → 打 `v*` tag → CI 自动构建发布
+
+## GitHub Actions（`.github/workflows/`）
+
+| 文件 | 触发条件 | 内容 |
+|------|---------|------|
+| `ci.yml` | push / PR → master | 前端：`tsc -b` + `vite build`（ubuntu）。Rust：`cargo check`（windows-msvc） |
+| `build.yml` | PR → master / `v*` tag / 手动 | 完整 Tauri 构建，产物上传为 Artifact |
+
+**`tauri-apps/tauri-action@v0` 依赖 `package.json` 中的 `"tauri": "tauri"` npm 脚本**，缺失会导致构建失败。
 
 ## 文件职责速查
 
