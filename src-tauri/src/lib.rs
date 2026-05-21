@@ -11,6 +11,7 @@ use tauri_plugin_global_shortcut::{Code, GlobalShortcutExt, Modifiers, Shortcut}
 pub struct AppState {
     pub store: Mutex<store::AppStore>,
     pub pinned: AtomicBool,
+    pub drag_pinned: AtomicBool,
 }
 
 fn show_window_on_active_monitor(app: &tauri::AppHandle) {
@@ -89,6 +90,11 @@ fn set_pinned(state: tauri::State<'_, AppState>, pinned: bool) {
     state.pinned.store(pinned, Ordering::Relaxed);
 }
 
+#[tauri::command]
+fn start_drag_pin(state: tauri::State<'_, AppState>) {
+    state.drag_pinned.store(true, Ordering::Relaxed);
+}
+
 fn setup_shortcut(app: &tauri::AppHandle) -> Result<(), Box<dyn std::error::Error>> {
     let shortcut = Shortcut::new(Some(Modifiers::ALT), Code::Space);
 
@@ -109,6 +115,7 @@ pub fn run() {
     let state = AppState {
         store: Mutex::new(store),
         pinned: AtomicBool::new(false),
+        drag_pinned: AtomicBool::new(false),
     };
 
     tauri::Builder::default()
@@ -120,11 +127,19 @@ pub fn run() {
             Some(vec![]),
         ))
         .on_window_event(|window, event| {
-            if let tauri::WindowEvent::Focused(false) = event {
-                let state = window.state::<AppState>();
-                if !state.pinned.load(Ordering::Relaxed) {
-                    let _ = window.hide();
+            let state = window.state::<AppState>();
+            match event {
+                tauri::WindowEvent::Focused(true) => {
+                    state.drag_pinned.store(false, Ordering::Relaxed);
                 }
+                tauri::WindowEvent::Focused(false) => {
+                    if !state.pinned.load(Ordering::Relaxed)
+                        && !state.drag_pinned.load(Ordering::Relaxed)
+                    {
+                        let _ = window.hide();
+                    }
+                }
+                _ => {}
             }
         })
         .manage(state)
@@ -144,6 +159,7 @@ pub fn run() {
         .invoke_handler(tauri::generate_handler![
             hide_window,
             set_pinned,
+            start_drag_pin,
             commands::projects::list_projects,
             commands::projects::add_project,
             commands::projects::remove_project,

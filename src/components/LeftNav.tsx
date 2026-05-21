@@ -1,6 +1,7 @@
 import { useAppStore } from "../lib/store";
 import { useT } from "../lib/i18n";
 import { Diamond, Folders, Pin, PinOff, Settings, Moon, Sun } from "lucide-react";
+import { invoke } from "@tauri-apps/api/core";
 
 const btnBase = {
   width: 34,
@@ -55,16 +56,7 @@ export function LeftNav() {
       <div
         style={{ marginBottom: 8, cursor: "grab" }}
         data-tauri-drag-region
-        onMouseDown={() => {
-          if (!useAppStore.getState().pinned) {
-            togglePin();
-            const unPin = () => {
-              window.removeEventListener("mouseup", unPin);
-              setTimeout(() => togglePin(), 75);
-            };
-            window.addEventListener("mouseup", unPin);
-          }
-        }}
+        onMouseDown={() => invoke("start_drag_pin")}
       >
         <Diamond size={18} strokeWidth={1.5} style={{ opacity: 0.8, pointerEvents: "none" }} />
       </div>
