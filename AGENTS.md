@@ -124,5 +124,6 @@ React 组件 → Zustand (src/lib/store.ts) → tauri.ts (invoke IPC) → Rust C
 | `src/components/ProjectDetail.tsx` | 项目详情（启动、Git 操作、模板注入、标签、活动） |
 | `src/components/Toast.tsx` | 固定右上角通知弹出层（success / error / info） |
 | `src/index.css` | Tailwind v4 @theme + 暗/亮双主题变量 + toast 动画 keyframe |
+| `lucide-react` | 图标库（18px stroke 1.5，250+ stroke icons，MIT） |
 | `src-tauri/tauri.conf.json` | 窗口尺寸（960×620）、decorations: false、visible: false、构建命令 |
 | `src-tauri/capabilities/default.json` | 权限白名单（shell/fs/dialog/shortcut/autostart） |

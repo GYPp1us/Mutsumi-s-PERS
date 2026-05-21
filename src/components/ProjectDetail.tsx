@@ -2,6 +2,7 @@ import { useState } from "react";
 import { useAppStore } from "../lib/store";
 import { useT } from "../lib/i18n";
 import * as api from "../lib/tauri";
+import { Star, Play, GitBranch, LayoutTemplate } from "lucide-react";
 
 const sectionLabel = {
   fontSize: 11,
@@ -20,7 +21,6 @@ const btnBase = {
   cursor: "pointer",
   transition: "all 0.15s ease",
 } as const;
-
 export function ProjectDetail() {
   const t = useT();
   const selectedId = useAppStore((s) => s.selectedProjectId);
@@ -36,7 +36,7 @@ export function ProjectDetail() {
   const handleLaunch = async (editorId: string, editorName: string) => {
     try {
       await api.launchEditor(editorId, project.path);
-      addToast(`\u2713 ${editorName} \u542F\u52A8\u6210\u529F`, "success");
+      addToast(`\u2713 ${editorName}`, "success");
     } catch (e) {
       addToast(`\u2717 ${editorName}: ${e}`, "error");
     }
@@ -67,12 +67,16 @@ export function ProjectDetail() {
         <button
           onClick={() => toggleStar(project.id, !project.starred)}
           style={{
-            background: "none", border: "none", fontSize: 18, cursor: "pointer",
-            color: project.starred ? "var(--color-warning)" : "var(--color-text-muted)",
+            background: "none", border: "none", cursor: "pointer",
             transition: "all 0.15s ease",
           }}
         >
-          &#9733;
+          <Star
+            size={18}
+            strokeWidth={1.5}
+            color={project.starred ? "var(--color-warning)" : "var(--color-text-muted)"}
+            fill={project.starred ? "var(--color-warning)" : "none"}
+          />
         </button>
       </div>
 
@@ -101,13 +105,15 @@ export function ProjectDetail() {
             style={{
               ...btnBase,
               background: "var(--color-card)", color: "var(--color-text-secondary)",
+              display: "flex", alignItems: "center", gap: 4,
             }}
             onMouseEnter={(e) => { e.currentTarget.style.filter = "brightness(1.2)"; e.currentTarget.style.color = "var(--color-text)"; }}
             onMouseLeave={(e) => { e.currentTarget.style.filter = "none"; e.currentTarget.style.color = "var(--color-text-secondary)"; }}
             onMouseDown={(e) => (e.currentTarget.style.transform = "scale(0.97)")}
             onMouseUp={(e) => (e.currentTarget.style.transform = "none")}
           >
-            {t.launchAll}
+            <Play size={14} strokeWidth={1.5} />
+            {t.launchAll.replace("\u25B6 ", "")}
           </button>
         </div>
       </div>
@@ -170,7 +176,7 @@ function GitSection({ projectPath }: { projectPath: string }) {
     try {
       const result = await fn();
       setOutput(result || t.done);
-      addToast(`\u2713 git ${op} \u5B8C\u6210`, "success");
+      addToast(`\u2713 git ${op}`, "success");
     } catch (e) {
       setOutput(String(e));
       addToast(`\u2717 git ${op}: ${e}`, "error");
@@ -180,7 +186,10 @@ function GitSection({ projectPath }: { projectPath: string }) {
 
   return (
     <div style={cardStyle}>
-      <div style={sectionLabel}>{t.navGit}</div>
+      <div style={{ ...sectionLabel, display: "flex", alignItems: "center", gap: 6 }}>
+        <GitBranch size={14} strokeWidth={1.5} />
+        <span>{t.navGit}</span>
+      </div>
       <div style={{ display: "flex", gap: 8, flexWrap: "wrap", marginBottom: status ? 8 : 0 }}>
         {([
           [t.fetch, () => api.gitFetch(projectPath)],
@@ -230,17 +239,18 @@ function TemplateSection({ projectId, projectPath }: { projectId: string; projec
       const result = await api.injectTemplate("", projectPath, [], "skip");
       const name = projects.find((p) => p.id === projectId)?.name || "";
       setStatus(t.injectedFiles(result.length, name));
-      addToast(`\u2713 ${t.injectedFiles(result.length, name)}`, "success");
+      addToast(t.injectedFiles(result.length, name), "success");
     } catch (e) {
       setStatus(t.error(e));
-      addToast(`\u2717 ${t.error(e)}`, "error");
+      addToast(t.error(e), "error");
     }
   };
 
   return (
     <div style={cardStyle}>
-      <div style={sectionLabel}>
-        {t.navTemplates}
+      <div style={{ ...sectionLabel, display: "flex", alignItems: "center", gap: 6 }}>
+        <LayoutTemplate size={14} strokeWidth={1.5} />
+        <span>{t.navTemplates}</span>
       </div>
       <div style={{ fontSize: 11, color: "var(--color-text-muted)", marginBottom: 10 }}>
         {t.templateHelp}
@@ -249,7 +259,7 @@ function TemplateSection({ projectId, projectPath }: { projectId: string; projec
       <div style={{
         background: "var(--color-hover)", padding: "10px 14px", marginBottom: 10,
       }}>
-        <div style={{ color: "var(--color-text)" }}>&#10064; {t.defaultTemplateName}</div>
+        <div style={{ color: "var(--color-text)" }}>{t.defaultTemplateName}</div>
         <div style={{ fontSize: 11, color: "var(--color-text-muted)" }}>
           {t.general} &middot; {t.defaultTemplateDesc}
         </div>

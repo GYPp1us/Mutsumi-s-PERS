@@ -54,6 +54,8 @@ export const gitPush = (projectPath: string) =>
   invoke<string>("git_push", { projectPath });
 export const gitFetch = (projectPath: string) =>
   invoke<string>("git_fetch", { projectPath });
+export const setPinned = (pinned: boolean) =>
+  invoke<void>("set_pinned", { pinned });
 export const injectTemplate = (
   templatePath: string,
   targetPath: string,

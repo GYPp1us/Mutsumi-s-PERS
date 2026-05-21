@@ -1,5 +1,34 @@
 import { useAppStore } from "../lib/store";
 import { useT } from "../lib/i18n";
+import { Diamond, Folders, Pin, PinOff, Settings, Moon, Sun } from "lucide-react";
+
+const btnBase = {
+  width: 34,
+  height: 34,
+  display: "flex" as const,
+  alignItems: "center" as const,
+  justifyContent: "center" as const,
+  background: "transparent",
+  border: "none",
+  color: "inherit",
+  cursor: "pointer",
+  transition: "all 0.15s ease",
+  outline: "none",
+};
+
+const hoverIn = (e: React.MouseEvent<HTMLButtonElement>) => {
+  e.currentTarget.style.transform = "scale(1.08)";
+  e.currentTarget.style.opacity = "1";
+};
+const hoverOut = (e: React.MouseEvent<HTMLButtonElement>) => {
+  e.currentTarget.style.transform = "";
+};
+const pressIn = (e: React.MouseEvent<HTMLButtonElement>) => {
+  e.currentTarget.style.transform = "scale(0.93)";
+};
+const pressOut = (e: React.MouseEvent<HTMLButtonElement>) => {
+  e.currentTarget.style.transform = "scale(1.08)";
+};
 
 export function LeftNav() {
   const t = useT();
@@ -7,20 +36,8 @@ export function LeftNav() {
   const toggleSettings = useAppStore((s) => s.toggleSettings);
   const theme = useAppStore((s) => s.theme);
   const toggleTheme = useAppStore((s) => s.toggleTheme);
-
-  const btnStyle = {
-    width: 34,
-    height: 34,
-    display: "flex" as const,
-    alignItems: "center" as const,
-    justifyContent: "center" as const,
-    fontSize: 16,
-    background: "transparent",
-    border: "none",
-    color: "inherit",
-    cursor: "pointer",
-    transition: "all 0.15s ease",
-  };
+  const pinned = useAppStore((s) => s.pinned);
+  const togglePin = useAppStore((s) => s.togglePin);
 
   return (
     <nav
@@ -35,39 +52,82 @@ export function LeftNav() {
         flexShrink: 0,
       }}
     >
-      <div style={{ fontSize: 18, opacity: 0.8, marginBottom: 8 }}>&#9671;</div>
+      <div
+        style={{ marginBottom: 8, cursor: "grab" }}
+        data-tauri-drag-region
+        onMouseDown={() => {
+          if (!useAppStore.getState().pinned) {
+            togglePin();
+            const unPin = () => {
+              window.removeEventListener("mouseup", unPin);
+              setTimeout(() => togglePin(), 75);
+            };
+            window.addEventListener("mouseup", unPin);
+          }
+        }}
+      >
+        <Diamond size={18} strokeWidth={1.5} style={{ opacity: 0.8, pointerEvents: "none" }} />
+      </div>
 
       <button
         title={t.navProjects}
         style={{
-          ...btnStyle,
+          ...btnBase,
           opacity: !showSettings ? 1 : 0.35,
           background: !showSettings ? "var(--color-hover)" : "transparent",
         }}
+        onMouseEnter={hoverIn}
+        onMouseLeave={hoverOut}
+        onMouseDown={pressIn}
+        onMouseUp={pressOut}
       >
-        &#x2637;
+        <Folders size={18} strokeWidth={1.5} />
       </button>
 
       <div style={{ flex: 1 }} />
 
       <button
+        onClick={togglePin}
+        title={pinned ? "\u9489\u9009" : "\u672A\u9489\u9009"}
+        style={{
+          ...btnBase,
+          opacity: pinned ? 1 : 0.4,
+          background: pinned ? "var(--color-hover)" : "transparent",
+        }}
+        onMouseEnter={hoverIn}
+        onMouseLeave={hoverOut}
+        onMouseDown={pressIn}
+        onMouseUp={pressOut}
+      >
+        {pinned ? <Pin size={18} strokeWidth={1.5} /> : <PinOff size={18} strokeWidth={1.5} />}
+      </button>
+
+      <button
         onClick={toggleSettings}
         title={t.navSettings}
         style={{
-          ...btnStyle,
+          ...btnBase,
           opacity: showSettings ? 1 : 0.35,
           background: showSettings ? "var(--color-hover)" : "transparent",
         }}
+        onMouseEnter={hoverIn}
+        onMouseLeave={hoverOut}
+        onMouseDown={pressIn}
+        onMouseUp={pressOut}
       >
-        &#9881;
+        <Settings size={18} strokeWidth={1.5} />
       </button>
 
       <button
         onClick={toggleTheme}
         title={t.toggleTheme}
-        style={{ ...btnStyle, opacity: 0.7 }}
+        style={{ ...btnBase, opacity: 0.7 }}
+        onMouseEnter={hoverIn}
+        onMouseLeave={hoverOut}
+        onMouseDown={pressIn}
+        onMouseUp={pressOut}
       >
-        {theme === "dark" ? "\u25C9" : "\u25CB"}
+        {theme === "dark" ? <Moon size={18} strokeWidth={1.5} /> : <Sun size={18} strokeWidth={1.5} />}
       </button>
     </nav>
   );

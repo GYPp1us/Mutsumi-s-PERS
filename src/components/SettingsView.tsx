@@ -3,6 +3,7 @@ import { useAppStore } from "../lib/store";
 import { useT } from "../lib/i18n";
 import type { EditorConfig } from "../lib/tauri";
 import * as api from "../lib/tauri";
+import { Plus, X } from "lucide-react";
 
 const sectionLabel = {
   fontSize: 11,
@@ -128,11 +129,11 @@ export function SettingsView() {
             onClick={addEditor}
             style={{
               background: "none", border: "none",
-              color: "var(--color-text-muted)", fontSize: 16,
+              color: "var(--color-text-muted)",
               cursor: "pointer", lineHeight: 1,
             }}
           >
-            +
+            <Plus size={16} strokeWidth={1.5} />
           </button>
         </div>
         <div style={{ display: "flex", flexDirection: "column", gap: 10 }}>
@@ -162,10 +163,10 @@ export function SettingsView() {
                 onClick={() => removeEditor(i)}
                 style={{
                   background: "none", border: "none",
-                  color: "var(--color-text-muted)", fontSize: 14, cursor: "pointer",
+                  color: "var(--color-text-muted)", cursor: "pointer",
                 }}
               >
-                &#10005;
+                <X size={14} strokeWidth={1.5} />
               </button>
             </div>
           ))}
