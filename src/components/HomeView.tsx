@@ -41,7 +41,7 @@ export function HomeView() {
                 onClick={() => selectProject(p.id)}
                 style={{
                   display: "flex", alignItems: "center", justifyContent: "space-between",
-                  padding: "8px 0", cursor: "pointer",
+                  padding: "8px 0", cursor: "pointer", transition: "opacity 0.12s ease",
                 }}
               >
                 <div>
@@ -71,7 +71,7 @@ export function HomeView() {
                 onClick={() => selectProject(p.id)}
                 style={{
                   display: "flex", alignItems: "center", justifyContent: "space-between",
-                  padding: "8px 0", cursor: "pointer",
+                  padding: "8px 0", cursor: "pointer", transition: "opacity 0.12s ease",
                 }}
               >
                 <div>

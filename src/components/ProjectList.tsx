@@ -60,7 +60,7 @@ export function ProjectList() {
           style={{
             background: "none", border: "none",
             color: "var(--color-text-muted)", fontSize: 18,
-            cursor: "pointer", lineHeight: 1,
+            cursor: "pointer", lineHeight: 1, transition: "all 0.15s ease",
           }}
         >
           +
@@ -86,6 +86,7 @@ export function ProjectList() {
             padding: "8px 14px", margin: "1px 4px",
             display: "flex", alignItems: "center", gap: 8,
             cursor: "pointer", opacity: 0.6, background: "transparent",
+            transition: "background 0.12s ease",
           }}
         >
           <span>&#8962;</span>
@@ -102,6 +103,7 @@ export function ProjectList() {
               cursor: "pointer",
               background:
                 selectedProjectId === project.id ? "var(--color-hover)" : "transparent",
+              transition: "background 0.12s ease",
             }}
           >
             <span style={{ fontSize: 14 }}>&#9635;</span>

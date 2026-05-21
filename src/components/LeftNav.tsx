@@ -19,6 +19,7 @@ export function LeftNav() {
     border: "none",
     color: "inherit",
     cursor: "pointer",
+    transition: "all 0.15s ease",
   };
 
   return (

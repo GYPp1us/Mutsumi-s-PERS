@@ -71,10 +71,10 @@ cargo check --manifest-path src-tauri/Cargo.toml
 React 组件 → Zustand (src/lib/store.ts) → tauri.ts (invoke IPC) → Rust Command → store.rs (JSON)
 ```
 
-**IPC 命令清单**（12 个）：
+**IPC 命令清单**（13 个）：
 `list_projects` `add_project` `remove_project` `update_project`
 `launch_editor` `git_status` `git_pull` `git_push` `git_fetch`
-`inject_template` `get_settings` `update_settings`
+`inject_template` `get_settings` `update_settings` `hide_window`
 
 前端不直接调 `invoke()`，全部走 `src/lib/tauri.ts` 的封装函数。
 
@@ -88,6 +88,12 @@ React 组件 → Zustand (src/lib/store.ts) → tauri.ts (invoke IPC) → Rust C
 - **主题**：CSS 变量在 `src/index.css` 的 `@theme` 块定义，via `data-theme="dark|light"`
 - **全直角**：`src/index.css` 有 `border-radius: 0 !important`
 - **窗口默认隐藏**：`tauri.conf.json` 中 `visible: false`，通过托盘/快捷键唤醒
+
+## 窗口行为
+
+- **唤醒**：托盘左键 / 托盘菜单 "Show" / 全局快捷键 → `show_window_on_active_monitor()` → 鼠标所在屏幕居中显示
+- **隐藏**：ESC 键 → 前端 `invoke("hide_window")` → Rust 侧 `window.hide()`；窗口失去焦点自动隐藏（`on_window_event(Focused(false))`）
+- **设置弹窗**：左侧齿轮按钮打开，ESC 或点击遮罩关闭。`App.tsx` 渲染 `<SettingsModal />`，不占用路由
 
 ## 分支策略
 
@@ -108,12 +114,15 @@ React 组件 → Zustand (src/lib/store.ts) → tauri.ts (invoke IPC) → Rust C
 
 | 文件 | 职责 |
 |------|------|
-| `src-tauri/src/lib.rs` | 托盘 + 快捷键 + 插件 + 命令注册 |
+| `src-tauri/src/lib.rs` | 托盘 + 快捷键 + 插件 + 命令注册 + 失焦隐藏 + 居中唤醒 |
 | `src-tauri/src/store.rs` | JSON 读写 + 数据模型 + 默认值 |
 | `src-tauri/src/commands/*.rs` | 每个文件一组 IPC 命令 |
-| `src/lib/store.ts` | Zustand 全局状态（projects / settings / navView / theme） |
+| `src/lib/store.ts` | Zustand 全局状态（projects / settings / navView / theme / locale / showSettings / toasts） |
 | `src/lib/tauri.ts` | invoke 封装，类型定义 |
-| `src/components/RightPanel.tsx` | 根据 navView + selectedProjectId 路由子面板 |
-| `src/index.css` | Tailwind v4 @theme + 暗/亮双主题变量 |
-| `src-tauri/tauri.conf.json` | 窗口尺寸、构建命令、bundle 配置 |
+| `src/lib/i18n.ts` | 中英双语词条 + `useT()` hook + `LocaleCtx` |
+| `src/components/RightPanel.tsx` | 根据 selectedProjectId 路由 ProjectDetail / HomeView |
+| `src/components/ProjectDetail.tsx` | 项目详情（启动、Git 操作、模板注入、标签、活动） |
+| `src/components/Toast.tsx` | 固定右上角通知弹出层（success / error / info） |
+| `src/index.css` | Tailwind v4 @theme + 暗/亮双主题变量 + toast 动画 keyframe |
+| `src-tauri/tauri.conf.json` | 窗口尺寸（960×620）、decorations: false、visible: false、构建命令 |
 | `src-tauri/capabilities/default.json` | 权限白名单（shell/fs/dialog/shortcut/autostart） |
