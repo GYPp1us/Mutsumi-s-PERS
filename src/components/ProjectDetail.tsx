@@ -13,19 +13,33 @@ const sectionLabel = {
 
 const cardStyle = { background: "var(--color-card)", padding: "14px 16px" };
 
+const btnBase = {
+  border: "none",
+  padding: "6px 14px",
+  fontSize: 12,
+  cursor: "pointer",
+  transition: "all 0.15s ease",
+} as const;
+
 export function ProjectDetail() {
   const t = useT();
   const selectedId = useAppStore((s) => s.selectedProjectId);
   const projects = useAppStore((s) => s.projects);
   const settings = useAppStore((s) => s.settings);
   const toggleStar = useAppStore((s) => s.toggleStar);
+  const addToast = useAppStore((s) => s.addToast);
 
   const project = projects.find((p) => p.id === selectedId);
   if (!project)
     return <div style={{ color: "var(--color-text-muted)" }}>{t.selectProject}</div>;
 
-  const handleLaunch = async (editorId: string) => {
-    try { await api.launchEditor(editorId, project.path); } catch (e) { console.error(e); }
+  const handleLaunch = async (editorId: string, editorName: string) => {
+    try {
+      await api.launchEditor(editorId, project.path);
+      addToast(`\u2713 ${editorName} \u542F\u52A8\u6210\u529F`, "success");
+    } catch (e) {
+      addToast(`\u2717 ${editorName}: ${e}`, "error");
+    }
   };
 
   const handleLaunchAll = async () => {
@@ -33,7 +47,10 @@ export function ProjectDetail() {
       project.editors.length > 0
         ? project.editors
         : settings?.editors.map((e) => e.id) || [];
-    for (const id of editors) await handleLaunch(id);
+    for (const id of editors) {
+      const ed = settings?.editors.find((e) => e.id === id);
+      await handleLaunch(id, ed?.name || id);
+    }
   };
 
   return (
@@ -52,6 +69,7 @@ export function ProjectDetail() {
           style={{
             background: "none", border: "none", fontSize: 18, cursor: "pointer",
             color: project.starred ? "var(--color-warning)" : "var(--color-text-muted)",
+            transition: "all 0.15s ease",
           }}
         >
           &#9733;
@@ -65,11 +83,15 @@ export function ProjectDetail() {
           {(settings?.editors || []).map((ed) => (
             <button
               key={ed.id}
-              onClick={() => handleLaunch(ed.id)}
+              onClick={() => handleLaunch(ed.id, ed.name)}
               style={{
+                ...btnBase,
                 background: "var(--color-primary)", color: "var(--color-primary-fg)",
-                border: "none", padding: "6px 14px", fontSize: 12, cursor: "pointer",
               }}
+              onMouseEnter={(e) => (e.currentTarget.style.filter = "brightness(1.2)")}
+              onMouseLeave={(e) => (e.currentTarget.style.filter = "none")}
+              onMouseDown={(e) => (e.currentTarget.style.transform = "scale(0.97)")}
+              onMouseUp={(e) => (e.currentTarget.style.transform = "none")}
             >
               {ed.name}
             </button>
@@ -77,9 +99,13 @@ export function ProjectDetail() {
           <button
             onClick={handleLaunchAll}
             style={{
+              ...btnBase,
               background: "var(--color-card)", color: "var(--color-text-secondary)",
-              border: "none", padding: "6px 14px", fontSize: 12, cursor: "pointer",
             }}
+            onMouseEnter={(e) => { e.currentTarget.style.filter = "brightness(1.2)"; e.currentTarget.style.color = "var(--color-text)"; }}
+            onMouseLeave={(e) => { e.currentTarget.style.filter = "none"; e.currentTarget.style.color = "var(--color-text-secondary)"; }}
+            onMouseDown={(e) => (e.currentTarget.style.transform = "scale(0.97)")}
+            onMouseUp={(e) => (e.currentTarget.style.transform = "none")}
           >
             {t.launchAll}
           </button>
@@ -134,6 +160,7 @@ export function ProjectDetail() {
 
 function GitSection({ projectPath }: { projectPath: string }) {
   const t = useT();
+  const addToast = useAppStore((s) => s.addToast);
   const [status, setStatus] = useState<string>("");
   const [output, setOutput] = useState<string>("");
 
@@ -143,8 +170,10 @@ function GitSection({ projectPath }: { projectPath: string }) {
     try {
       const result = await fn();
       setOutput(result || t.done);
+      addToast(`\u2713 git ${op} \u5B8C\u6210`, "success");
     } catch (e) {
       setOutput(String(e));
+      addToast(`\u2717 git ${op}: ${e}`, "error");
     }
     setStatus("");
   };
@@ -165,7 +194,12 @@ function GitSection({ projectPath }: { projectPath: string }) {
             style={{
               background: "var(--color-card)", color: "var(--color-text-secondary)",
               border: "none", padding: "6px 14px", fontSize: 12, cursor: "pointer",
+              transition: "all 0.15s ease",
             }}
+            onMouseEnter={(e) => { e.currentTarget.style.filter = "brightness(1.2)"; e.currentTarget.style.color = "var(--color-text)"; }}
+            onMouseLeave={(e) => { e.currentTarget.style.filter = "none"; e.currentTarget.style.color = "var(--color-text-secondary)"; }}
+            onMouseDown={(e) => (e.currentTarget.style.transform = "scale(0.97)")}
+            onMouseUp={(e) => (e.currentTarget.style.transform = "none")}
           >
             {label}
           </button>
@@ -187,15 +221,19 @@ function GitSection({ projectPath }: { projectPath: string }) {
 function TemplateSection({ projectId, projectPath }: { projectId: string; projectPath: string }) {
   const t = useT();
   const projects = useAppStore((s) => s.projects);
+  const addToast = useAppStore((s) => s.addToast);
   const [status, setStatus] = useState<string>("");
 
   const handleInject = async () => {
     setStatus(t.injecting);
     try {
       const result = await api.injectTemplate("", projectPath, [], "skip");
-      setStatus(t.injectedFiles(result.length, projects.find((p) => p.id === projectId)?.name || ""));
+      const name = projects.find((p) => p.id === projectId)?.name || "";
+      setStatus(t.injectedFiles(result.length, name));
+      addToast(`\u2713 ${t.injectedFiles(result.length, name)}`, "success");
     } catch (e) {
       setStatus(t.error(e));
+      addToast(`\u2717 ${t.error(e)}`, "error");
     }
   };
 
@@ -222,7 +260,12 @@ function TemplateSection({ projectId, projectPath }: { projectId: string; projec
         style={{
           background: "var(--color-primary)", color: "var(--color-primary-fg)",
           border: "none", padding: "8px 16px", fontSize: 12, cursor: "pointer",
+          transition: "all 0.15s ease",
         }}
+        onMouseEnter={(e) => (e.currentTarget.style.filter = "brightness(1.2)")}
+        onMouseLeave={(e) => (e.currentTarget.style.filter = "none")}
+        onMouseDown={(e) => (e.currentTarget.style.transform = "scale(0.97)")}
+        onMouseUp={(e) => (e.currentTarget.style.transform = "none")}
       >
         {t.injectTemplate}
       </button>

@@ -11,6 +11,33 @@ pub struct AppState {
     pub store: Mutex<store::AppStore>,
 }
 
+fn show_window_on_active_monitor(app: &tauri::AppHandle) {
+    let Some(window) = app.get_webview_window("main") else { return };
+
+    let Ok(cursor) = app.cursor_position() else { return };
+    let Ok(monitors) = app.available_monitors() else { return };
+
+    for m in &monitors {
+        let pos = m.position();
+        let size = m.size();
+        let x_min = pos.x as f64;
+        let y_min = pos.y as f64;
+        let x_max = x_min + size.width as f64;
+        let y_max = y_min + size.height as f64;
+
+        if cursor.x >= x_min && cursor.x < x_max && cursor.y >= y_min && cursor.y < y_max {
+            let Ok(win_size) = window.outer_size() else { continue };
+            let x = x_min + ((size.width as f64 - win_size.width as f64) / 2.0).max(0.0);
+            let y = y_min + ((size.height as f64 - win_size.height as f64) / 2.0).max(0.0);
+            let _ = window.set_position(tauri::PhysicalPosition::new(x as i32, y as i32));
+            break;
+        }
+    }
+
+    let _ = window.show();
+    let _ = window.set_focus();
+}
+
 fn setup_tray(app: &tauri::AppHandle) -> Result<(), Box<dyn std::error::Error>> {
     let show_item = MenuItemBuilder::with_id("show", "Show").build(app)?;
     let settings_item = MenuItemBuilder::with_id("settings", "Settings").build(app)?;
@@ -25,12 +52,7 @@ fn setup_tray(app: &tauri::AppHandle) -> Result<(), Box<dyn std::error::Error>> 
     let _tray = TrayIconBuilder::new()
         .menu(&menu)
         .on_menu_event(move |app, event| match event.id().as_ref() {
-            "show" => {
-                if let Some(w) = app.get_webview_window("main") {
-                    let _ = w.show();
-                    let _ = w.set_focus();
-                }
-            }
+            "show" => show_window_on_active_monitor(app),
             "quit" => {
                 app.exit(0);
             }
@@ -43,11 +65,7 @@ fn setup_tray(app: &tauri::AppHandle) -> Result<(), Box<dyn std::error::Error>> 
                 ..
             } = event
             {
-                let app = tray.app_handle();
-                if let Some(w) = app.get_webview_window("main") {
-                    let _ = w.show();
-                    let _ = w.set_focus();
-                }
+                show_window_on_active_monitor(tray.app_handle());
             }
         })
         .build(app)?;
@@ -68,10 +86,7 @@ fn setup_shortcut(app: &tauri::AppHandle) -> Result<(), Box<dyn std::error::Erro
     app.plugin(
         tauri_plugin_global_shortcut::Builder::new()
             .with_handler(move |app, _shortcut, _event| {
-                if let Some(w) = app.get_webview_window("main") {
-                    let _ = w.show();
-                    let _ = w.set_focus();
-                }
+                show_window_on_active_monitor(app);
             })
             .build(),
     )?;
@@ -94,6 +109,11 @@ pub fn run() {
             tauri_plugin_autostart::MacosLauncher::LaunchAgent,
             Some(vec![]),
         ))
+        .on_window_event(|window, event| {
+            if let tauri::WindowEvent::Focused(false) = event {
+                let _ = window.hide();
+            }
+        })
         .manage(state)
         .setup(|app| {
             setup_tray(app.handle())?;

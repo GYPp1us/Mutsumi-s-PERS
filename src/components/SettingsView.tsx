@@ -82,6 +82,7 @@ export function SettingsView() {
             style={{
               background: "var(--color-primary)", color: "var(--color-primary-fg)",
               border: "none", padding: "6px 14px", fontSize: 12, cursor: "pointer",
+              transition: "all 0.15s ease",
             }}
           >
             {theme === "dark" ? t.themeDark : t.themeLight}
@@ -100,6 +101,7 @@ export function SettingsView() {
                 background: locale === code ? "var(--color-primary)" : "var(--color-card)",
                 color: locale === code ? "var(--color-primary-fg)" : "var(--color-text-secondary)",
                 border: "none", padding: "6px 14px", fontSize: 12, cursor: "pointer",
+                transition: "all 0.15s ease",
               }}
             >
               {label}
@@ -175,7 +177,7 @@ export function SettingsView() {
         style={{
           background: "var(--color-success)", color: "#c0d0c0",
           border: "none", padding: "8px 20px", fontSize: 12,
-          cursor: "pointer", alignSelf: "flex-start",
+          cursor: "pointer", alignSelf: "flex-start", transition: "all 0.15s ease",
         }}
       >
         {t.saveSettings}

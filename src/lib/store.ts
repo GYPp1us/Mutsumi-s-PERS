@@ -2,6 +2,14 @@ import { create } from "zustand";
 import type { Project, Settings } from "./tauri";
 import * as api from "./tauri";
 
+export type ToastType = "success" | "error" | "info";
+
+export interface Toast {
+  id: string;
+  message: string;
+  type: ToastType;
+}
+
 interface AppStore {
   projects: Project[];
   settings: Settings | null;
@@ -9,6 +17,7 @@ interface AppStore {
   theme: "dark" | "light";
   locale: "zh" | "en";
   showSettings: boolean;
+  toasts: Toast[];
   loadProjects: () => Promise<void>;
   loadSettings: () => Promise<void>;
   addProject: (name: string, path: string) => Promise<void>;
@@ -19,6 +28,8 @@ interface AppStore {
   setLocale: (locale: "zh" | "en") => void;
   toggleSettings: () => void;
   hideSettings: () => void;
+  addToast: (message: string, type: ToastType) => void;
+  removeToast: (id: string) => void;
 }
 
 export const useAppStore = create<AppStore>((set, get) => ({
@@ -28,6 +39,7 @@ export const useAppStore = create<AppStore>((set, get) => ({
   theme: (localStorage.getItem("mutsumi-theme") as "dark" | "light") || "dark",
   locale: (localStorage.getItem("mutsumi-locale") as "zh" | "en") || "en",
   showSettings: false,
+  toasts: [],
 
   loadProjects: async () => {
     try {
@@ -90,4 +102,13 @@ export const useAppStore = create<AppStore>((set, get) => ({
 
   toggleSettings: () => set({ showSettings: !get().showSettings }),
   hideSettings: () => set({ showSettings: false }),
+
+  addToast: (message, type) => {
+    const id = crypto.randomUUID();
+    set({ toasts: [...get().toasts, { id, message, type }] });
+    setTimeout(() => {
+      set({ toasts: get().toasts.filter((t) => t.id !== id) });
+    }, 3000);
+  },
+  removeToast: (id) => set({ toasts: get().toasts.filter((t) => t.id !== id) }),
 }));

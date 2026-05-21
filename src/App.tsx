@@ -4,6 +4,7 @@ import { LeftNav } from "./components/LeftNav";
 import { ProjectList } from "./components/ProjectList";
 import { RightPanel } from "./components/RightPanel";
 import { SettingsView } from "./components/SettingsView";
+import { ToastContainer } from "./components/Toast";
 import { LocaleCtx, getLocale } from "./lib/i18n";
 import { invoke } from "@tauri-apps/api/core";
 
@@ -83,6 +84,7 @@ export default function App() {
         <RightPanel />
       </div>
       <SettingsModal />
+      <ToastContainer />
     </LocaleCtx.Provider>
   );
 }
