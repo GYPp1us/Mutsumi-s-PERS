@@ -8,6 +8,9 @@ on:
     tags:
       - "v*"
 
+permissions:
+  contents: write
+
 jobs:
   windows:
     name: Windows Tauri build
@@ -31,26 +34,8 @@ jobs:
         id: tauri
         with:
           args: --debug
+          releaseBody: |
+            See [CHANGELOG.md](./CHANGELOG.md) for details.
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
-
-      - name: Upload exe artifact
-        uses: actions/upload-artifact@v4
-        with:
-          name: mutsumi-launcher-exe
-          path: src-tauri/target/debug/mutsumi-launcher.exe
-          if-no-files-found: error
-
-      - name: Upload MSI artifact
-        uses: actions/upload-artifact@v4
-        with:
-          name: mutsumi-launcher-msi
-          path: src-tauri/target/debug/bundle/msi/*.msi
-          if-no-files-found: warn
-
-      - name: Upload NSIS artifact
-        uses: actions/upload-artifact@v4
-        with:
-          name: mutsumi-launcher-nsis
-          path: src-tauri/target/debug/bundle/nsis/*.exe
-          if-no-files-found: warn
+          FORCE_JAVASCRIPT_ACTIONS_TO_NODE24: "true"
