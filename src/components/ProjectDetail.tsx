@@ -218,16 +218,13 @@ function TemplateSection({ projectId, projectPath }: { projectId: string; projec
   const t = useT();
   const projects = useAppStore((s) => s.projects);
   const addToast = useAppStore((s) => s.addToast);
-  const [status, setStatus] = useState<string>("");
   const [injecting, setInjecting] = useState(false);
 
   const handleInject = async () => {
     setInjecting(true);
-    setStatus(t.injecting);
     try {
       const result = await api.injectTemplate("", projectPath, [], "skip");
       const name = projects.find((p) => p.id === projectId)?.name || "";
-      setStatus(t.injectedFiles(result.length, name));
       addToast(t.injectedFiles(result.length, name), "success");
     } catch (e) {
       addToast(t.error(e), "error");
@@ -262,10 +259,6 @@ function TemplateSection({ projectId, projectPath }: { projectId: string; projec
       >
         {t.injectTemplate}
       </ActionButton>
-
-      {status && (
-        <div style={{ fontSize: 12, color: "var(--color-text-secondary)", marginTop: 10 }}>{status}</div>
-      )}
     </div>
   );
 }
