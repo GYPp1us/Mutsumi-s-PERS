@@ -28,6 +28,8 @@ interface AppStore {
   setLocale: (locale: "zh" | "en") => void;
   toggleSettings: () => void;
   hideSettings: () => void;
+  pinned: boolean;
+  togglePin: () => void;
   addToast: (message: string, type: ToastType) => void;
   removeToast: (id: string) => void;
 }
@@ -40,6 +42,7 @@ export const useAppStore = create<AppStore>((set, get) => ({
   locale: (localStorage.getItem("mutsumi-locale") as "zh" | "en") || "en",
   showSettings: false,
   toasts: [],
+  pinned: false,
 
   loadProjects: async () => {
     try {
@@ -102,6 +105,12 @@ export const useAppStore = create<AppStore>((set, get) => ({
 
   toggleSettings: () => set({ showSettings: !get().showSettings }),
   hideSettings: () => set({ showSettings: false }),
+
+  togglePin: async () => {
+    const next = !get().pinned;
+    set({ pinned: next });
+    try { await api.setPinned(next); } catch { /* ignore */ }
+  },
 
   addToast: (message, type) => {
     const id = crypto.randomUUID();

@@ -68,6 +68,7 @@ export const en = {
   saveSettings: "Save Settings",
   settingsSaved: "Settings saved.",
   language: "Language",
+  editorHelp: "Path: absolute exe path or command name (e.g. \"code\" or \"C:\\\\...\\\\Code.exe\"). Args: comma-separated, \"{path}\" replaced with project folder at launch. Example: VS Code → code / [\"{path}\"]; Terminal → wt.exe / [\"-d\", \"{path}\"]",
 
   opened: "opened",
   viewedProject: "Viewed project",
@@ -141,6 +142,7 @@ export const zh: typeof en = {
   saveSettings: "\u4FDD\u5B58\u8BBE\u7F6E",
   settingsSaved: "\u8BBE\u7F6E\u5DF2\u4FDD\u5B58\u3002",
   language: "\u8BED\u8A00",
+  editorHelp: "\u8DEF\u5F84\uFF1A\u53EF\u586B\u5199\u7EDD\u5BF9\u8DEF\u5F84\u6216\u547D\u4EE4\u540D\uFF08\u5982 \"code\" \u6216 \"C:\\...\\Code.exe\"\uFF09\u3002\u53C2\u6570\uFF1A\u9017\u53F7\u5206\u9694\uFF0C\"{path}\" \u5728\u542F\u52A8\u65F6\u81EA\u52A8\u66FF\u6362\u4E3A\u9879\u76EE\u6587\u4EF6\u5939\u8DEF\u5F84\u3002\u793A\u4F8B\uFF1AVS Code \u2192 code / [\"{path}\"]\uFF1BTerminal \u2192 wt.exe / [\"-d\", \"{path}\"]",
 
   opened: "opened",
   viewedProject: "\u67E5\u770B\u4E86\u9879\u76EE",

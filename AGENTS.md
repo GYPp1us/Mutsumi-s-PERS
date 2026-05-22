@@ -86,6 +86,10 @@ React 组件 → Zustand (src/lib/store.ts) → tauri.ts (invoke IPC) → Rust C
 - **模板变量**：`{{ VAR_NAME }}`（双花括号），替换文件名和文件内容
 - **模板目录**：`%APPDATA%\mutsumi-launcher\templates\<name>\`，必须含 `template.json`
 - **主题**：CSS 变量在 `src/index.css` 的 `@theme` 块定义，via `data-theme="dark|light"`
+## 设计原则
+
+- **无窗口命令行**：所有 Rust `Command` 必须加 `creation_flags(0x08000000)`（`CREATE_NO_WINDOW`），隐式执行不弹控制台窗口
+- **执行中动画**：所有触发异步操作的按钮必须有 loading 态（`btn-loading` CSS class + `disabled`），文字显示 `· · ·`，禁止重复点击
 - **全直角**：`src/index.css` 有 `border-radius: 0 !important`
 - **窗口默认隐藏**：`tauri.conf.json` 中 `visible: false`，通过托盘/快捷键唤醒
 
@@ -124,5 +128,6 @@ React 组件 → Zustand (src/lib/store.ts) → tauri.ts (invoke IPC) → Rust C
 | `src/components/ProjectDetail.tsx` | 项目详情（启动、Git 操作、模板注入、标签、活动） |
 | `src/components/Toast.tsx` | 固定右上角通知弹出层（success / error / info） |
 | `src/index.css` | Tailwind v4 @theme + 暗/亮双主题变量 + toast 动画 keyframe |
+| `lucide-react` | 图标库（18px stroke 1.5，250+ stroke icons，MIT） |
 | `src-tauri/tauri.conf.json` | 窗口尺寸（960×620）、decorations: false、visible: false、构建命令 |
 | `src-tauri/capabilities/default.json` | 权限白名单（shell/fs/dialog/shortcut/autostart） |

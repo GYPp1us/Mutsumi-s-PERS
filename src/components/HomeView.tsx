@@ -1,5 +1,6 @@
 import { useAppStore } from "../lib/store";
 import { useT } from "../lib/i18n";
+import { Folder, Star } from "lucide-react";
 
 const sectionLabel = {
   fontSize: 11,
@@ -44,15 +45,16 @@ export function HomeView() {
                   padding: "8px 0", cursor: "pointer", transition: "opacity 0.12s ease",
                 }}
               >
-                <div>
-                  <div style={{ color: "#58a6ff", fontSize: 13 }}>&#9635; {p.name}</div>
-                  <div style={{ fontSize: 10, color: "var(--color-text-muted)" }}>
-                    {new Date(p.last_opened).toLocaleDateString()}
-                  </div>
+                <div style={{ display: "flex", alignItems: "center", gap: 6 }}>
+                  <Folder size={14} strokeWidth={1.5} />
+                  <span style={{ color: "#58a6ff", fontSize: 13 }}>{p.name}</span>
                 </div>
-                {p.starred && (
-                  <span style={{ color: "var(--color-warning)", fontSize: 12 }}>&#9733;</span>
-                )}
+                <div style={{ display: "flex", alignItems: "center", gap: 8 }}>
+                  <span style={{ fontSize: 10, color: "var(--color-text-muted)" }}>
+                    {new Date(p.last_opened).toLocaleDateString()}
+                  </span>
+                  {p.starred && <Star size={12} strokeWidth={1.5} color="var(--color-warning)" />}
+                </div>
               </div>
             ))}
           </div>
@@ -74,11 +76,14 @@ export function HomeView() {
                   padding: "8px 0", cursor: "pointer", transition: "opacity 0.12s ease",
                 }}
               >
-                <div>
-                  <div style={{ color: "#58a6ff", fontSize: 13 }}>&#9635; {p.name}</div>
-                  <div style={{ fontSize: 10, color: "var(--color-text-muted)" }}>{p.path}</div>
+                <div style={{ display: "flex", alignItems: "center", gap: 6 }}>
+                  <Folder size={14} strokeWidth={1.5} />
+                  <span style={{ color: "#58a6ff", fontSize: 13 }}>{p.name}</span>
                 </div>
-                <span style={{ color: "var(--color-warning)", fontSize: 12 }}>&#9733;</span>
+                <div style={{ display: "flex", alignItems: "center", gap: 8 }}>
+                  <span style={{ fontSize: 10, color: "var(--color-text-muted)" }}>{p.path}</span>
+                  <Star size={12} strokeWidth={1.5} color="var(--color-warning)" />
+                </div>
               </div>
             ))}
           </div>

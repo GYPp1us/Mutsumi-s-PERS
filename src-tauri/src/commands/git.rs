@@ -1,8 +1,12 @@
 use std::process::Command;
+use std::os::windows::process::CommandExt;
+
+const CREATE_NO_WINDOW: u32 = 0x08000000;
 
 #[tauri::command]
 pub async fn git_status(project_path: String) -> Result<String, String> {
     let output = Command::new("git")
+        .creation_flags(CREATE_NO_WINDOW)
         .args(["-C", &project_path, "status", "--porcelain", "-b"])
         .output()
         .map_err(|e| format!("git not found: {}", e))?;
@@ -12,6 +16,7 @@ pub async fn git_status(project_path: String) -> Result<String, String> {
 #[tauri::command]
 pub async fn git_pull(project_path: String) -> Result<String, String> {
     let output = Command::new("git")
+        .creation_flags(CREATE_NO_WINDOW)
         .args(["-C", &project_path, "pull"])
         .output()
         .map_err(|e| e.to_string())?;
@@ -23,6 +28,7 @@ pub async fn git_pull(project_path: String) -> Result<String, String> {
 #[tauri::command]
 pub async fn git_push(project_path: String) -> Result<String, String> {
     let output = Command::new("git")
+        .creation_flags(CREATE_NO_WINDOW)
         .args(["-C", &project_path, "push"])
         .output()
         .map_err(|e| e.to_string())?;
@@ -34,6 +40,7 @@ pub async fn git_push(project_path: String) -> Result<String, String> {
 #[tauri::command]
 pub async fn git_fetch(project_path: String) -> Result<String, String> {
     let output = Command::new("git")
+        .creation_flags(CREATE_NO_WINDOW)
         .args(["-C", &project_path, "fetch", "--all"])
         .output()
         .map_err(|e| e.to_string())?;

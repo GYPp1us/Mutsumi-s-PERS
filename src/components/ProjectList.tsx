@@ -1,6 +1,7 @@
 import { useState } from "react";
 import { useAppStore } from "../lib/store";
 import { useT } from "../lib/i18n";
+import { Home, Folder, Star, Plus } from "lucide-react";
 
 export function ProjectList() {
   const t = useT();
@@ -59,11 +60,11 @@ export function ProjectList() {
           onClick={handleAdd}
           style={{
             background: "none", border: "none",
-            color: "var(--color-text-muted)", fontSize: 18,
+            color: "var(--color-text-muted)",
             cursor: "pointer", lineHeight: 1, transition: "all 0.15s ease",
           }}
         >
-          +
+          <Plus size={18} strokeWidth={1.5} />
         </button>
       </div>
 
@@ -88,8 +89,16 @@ export function ProjectList() {
             cursor: "pointer", opacity: 0.6, background: "transparent",
             transition: "background 0.12s ease",
           }}
+          onMouseEnter={(e) => {
+            e.currentTarget.style.background = "var(--color-hover)";
+            e.currentTarget.style.opacity = "0.8";
+          }}
+          onMouseLeave={(e) => {
+            e.currentTarget.style.background = "transparent";
+            e.currentTarget.style.opacity = "0.6";
+          }}
         >
-          <span>&#8962;</span>
+          <Home size={16} strokeWidth={1.5} />
           <span style={{ color: "var(--color-text-secondary)" }}>{t.homeItem}</span>
         </div>
 
@@ -103,10 +112,22 @@ export function ProjectList() {
               cursor: "pointer",
               background:
                 selectedProjectId === project.id ? "var(--color-hover)" : "transparent",
-              transition: "background 0.12s ease",
+              borderLeft: selectedProjectId === project.id
+                ? "2px solid var(--color-primary)" : "2px solid transparent",
+              transition: "background 0.12s ease, border-color 0.12s ease",
+            }}
+            onMouseEnter={(e) => {
+              if (selectedProjectId !== project.id) {
+                e.currentTarget.style.background = "var(--color-card)";
+              }
+            }}
+            onMouseLeave={(e) => {
+              if (selectedProjectId !== project.id) {
+                e.currentTarget.style.background = "transparent";
+              }
             }}
           >
-            <span style={{ fontSize: 14 }}>&#9635;</span>
+            <Folder size={14} strokeWidth={1.5} />
             <div style={{ flex: 1, minWidth: 0 }}>
               <div style={{
                 color: "var(--color-text)", overflow: "hidden",
@@ -122,7 +143,7 @@ export function ProjectList() {
               </div>
             </div>
             {project.starred && (
-              <span style={{ fontSize: 10, color: "var(--color-warning)" }}>&#9733;</span>
+              <Star size={12} strokeWidth={1.5} color="var(--color-warning)" />
             )}
           </div>
         ))}
