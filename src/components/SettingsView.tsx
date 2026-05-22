@@ -171,6 +171,9 @@ export function SettingsView() {
             </div>
           ))}
         </div>
+        <div style={{ fontSize: 11, color: "var(--color-text-muted)", marginTop: 12, lineHeight: 1.6 }}>
+          {t.editorHelp}
+        </div>
       </div>
 
       <button

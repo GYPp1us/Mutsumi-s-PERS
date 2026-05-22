@@ -241,7 +241,6 @@ function TemplateSection({ projectId, projectPath }: { projectId: string; projec
       setStatus(t.injectedFiles(result.length, name));
       addToast(t.injectedFiles(result.length, name), "success");
     } catch (e) {
-      setStatus(t.error(e));
       addToast(t.error(e), "error");
     }
   };
