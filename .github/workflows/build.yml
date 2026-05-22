@@ -37,7 +37,7 @@ jobs:
           (Get-Content src-tauri/tauri.conf.json) -replace '"version": ".+?"', "`"version`": `"$ver`"" | Set-Content src-tauri/tauri.conf.json
 
       - name: Build Tauri app
-        uses: tauri-apps/tauri-action@v0
+        uses: tauri-apps/tauri-action@v2
         id: tauri
         with:
           releaseBody: |
