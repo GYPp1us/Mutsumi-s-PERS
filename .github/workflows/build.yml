@@ -40,7 +40,6 @@ jobs:
         uses: tauri-apps/tauri-action@v0
         id: tauri
         with:
-          args: --debug
           releaseBody: |
             See [CHANGELOG.md](./CHANGELOG.md) for details.
         env:
