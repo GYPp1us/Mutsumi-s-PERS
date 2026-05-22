@@ -12,15 +12,12 @@ pub async fn launch_editor(state: State<'_, AppState>, editor_id: String, projec
         .find(|e| e.id == editor_id)
         .ok_or("Editor not found")?;
 
-    let path = which::which(&editor.path)
-        .map(|p| p.to_string_lossy().to_string())
-        .unwrap_or_else(|_| editor.path.clone());
-
     let args: Vec<String> = editor.args.iter()
         .map(|a| a.replace("{path}", &project_path))
         .collect();
 
-    Command::new(&path)
+    Command::new("cmd")
+        .args(["/c", "start", "", &editor.path])
         .args(&args)
         .creation_flags(CREATE_NO_WINDOW)
         .spawn()
