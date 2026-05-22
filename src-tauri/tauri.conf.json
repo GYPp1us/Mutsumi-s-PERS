@@ -1,8 +1,8 @@
 {
   "$schema": "../node_modules/@tauri-apps/cli/config.schema.json",
-  "productName": "Mutsumi Launcher",
+  "productName": "Mutsumi-s PRES",
   "version": "0.0.0",
-  "identifier": "com.mutsumi.launcher",
+  "identifier": "com.mutsumi.pres",
   "build": {
     "frontendDist": "../dist",
     "devUrl": "http://localhost:5173",
@@ -12,7 +12,7 @@
   "app": {
     "windows": [
       {
-        "title": "Mutsumi Launcher",
+        "title": "Mutsumi's PRES",
         "width": 960,
         "height": 620,
         "minWidth": 800,

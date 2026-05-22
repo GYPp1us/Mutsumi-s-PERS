@@ -1,7 +1,7 @@
 [package]
-name = "mutsumi-launcher"
+name = "mutsumi-s-pres"
 version = "0.1.0"
-description = "Local project environment GUI manager"
+description = "Mutsumi's PRES — local project environment manager"
 authors = ["you"]
 edition = "2021"
 rust-version = "1.77.2"

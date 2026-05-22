@@ -43,7 +43,7 @@ export const en = {
   templatesTitle: "Templates",
   availableTemplates: "Available Templates",
   templateHelp:
-    "Add custom templates by placing folders in %APPDATA%\\mutsumi-launcher\\templates\\ with a template.json file.",
+    "Add custom templates by placing folders in %APPDATA%\\mutsumi-s-pres\\templates\\ with a template.json file.",
   defaultTemplateName: "Default Template",
   defaultTemplateDesc: "Empty project starter",
   general: "general",
@@ -117,7 +117,7 @@ export const zh: typeof en = {
   templatesTitle: "\u6A21\u677F",
   availableTemplates: "\u53EF\u7528\u6A21\u677F",
   templateHelp:
-    "\u5C06\u6A21\u677F\u6587\u4EF6\u5939\u653E\u5165 %APPDATA%\\mutsumi-launcher\\templates\\ \u5E76\u5305\u542B template.json \u6587\u4EF6\u5373\u53EF\u6DFB\u52A0\u81EA\u5B9A\u4E49\u6A21\u677F\u3002",
+    "\u5C06\u6A21\u677F\u6587\u4EF6\u5939\u653E\u5165 %APPDATA%\\mutsumi-s-pres\\templates\\ \u5E76\u5305\u542B template.json \u6587\u4EF6\u5373\u53EF\u6DFB\u52A0\u81EA\u5B9A\u4E49\u6A21\u677F\u3002",
   defaultTemplateName: "\u9ED8\u8BA4\u6A21\u677F",
   defaultTemplateDesc: "\u7A7A\u9879\u76EE\u6A21\u677F",
   general: "\u901A\u7528",

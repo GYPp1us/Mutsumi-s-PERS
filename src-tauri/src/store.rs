@@ -47,7 +47,7 @@ pub struct AppStore {
 impl AppStore {
     fn data_dir() -> PathBuf {
         let base = dirs::config_dir().unwrap_or_else(|| PathBuf::from("."));
-        base.join("mutsumi-launcher")
+        base.join("mutsumi-s-pres")
     }
 
     fn data_file() -> PathBuf {
