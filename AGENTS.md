@@ -112,7 +112,20 @@ React 组件 → Zustand (src/lib/store.ts) → tauri.ts (invoke IPC) → Rust C
 | `ci.yml` | push / PR → master | 前端：`tsc -b` + `vite build`（ubuntu）。Rust：`cargo check`（windows-msvc） |
 | `build.yml` | PR → master / `v*` tag / 手动 | 完整 Tauri 构建，产物上传为 Artifact |
 
-**`tauri-apps/tauri-action@v0` 依赖 `package.json` 中的 `"tauri": "tauri"` npm 脚本**，缺失会导致构建失败。
+**`tauri-apps/tauri-action@v2` 依赖 `package.json` 中的 `"tauri": "tauri"` npm 脚本**，缺失会导致构建失败。
+
+## Changelog 维护
+
+每次 PR 合入 master 时，必须在 `CHANGELOG.md` 顶部按以下格式追加一行变更摘要：
+
+```markdown
+## [版本号] - YYYY-MM-DD
+
+### Added / Changed / Fixed / Removed
+- 简短描述 (#PR号)
+```
+
+版本号与 git tag 一致。不要跳过 PR 级别的 changelog 更新——`build.yml` 的 `releaseBody` 引用此文件生成 Release 正文。
 
 ## 文件职责速查
 

@@ -1,39 +1,59 @@
 # Changelog
 
-## v0.0.1 (2026-05-19)
+## [0.2.3] - 2026-05-22
 
-### Features
+### Changed
+- CI uses `tauri-action@v2` for proper Release asset upload
+- CI build mode: `--debug` → release
+
+## [0.2.2] - 2026-05-22
+
+### Changed
+- `tauri.conf.json` version placeholder `0.1.0` → `0.0.0`
+- CI syncs version from git tag before building
+
+## [0.2.1] - 2026-05-22
+
+### Fixed
+- Release tag version mismatch (no assets uploaded)
+
+## [0.2.0] - 2026-05-22
+
+### Added
+- Lucide React icons replacing Unicode/emoji in all components
+- Window drag via Diamond icon (`data-tauri-drag-region`)
+- Pin button: toggle focus-loss hide behavior (Rust `AtomicBool`)
+- `ActionButton` reusable component with loading/hover/press animations
+- Button loading state: `· · ·` pulse animation + disabled for all async operations
+- `CHANGELOG.md` with Keep a Changelog format
+- CI workflow for version sync from git tag
+
+### Changed
+- Editor launch wrapped in `cmd /c start ""` to prevent `CREATE_NO_WINDOW` suppressing GUI
+- Editor command resolution uses `which` crate for PATH-independent lookup
+- Settings editor help text includes usage examples
+- Template injection errors shown via toast only, no inline display
+- `onMouseLeave` unconditionally resets button hover styles
+
+### Fixed
+- Window drag triggers focus loss — added `drag_pinned` AtomicBool auto-reset on `Focused(true)`
+- Template inject button loading state synchronization
+
+## [0.1.0] - 2026-05-19
+
+### Added
+- Tauri v2 + React 18 + Tailwind CSS 4 project scaffold
 - System tray resident, auto-start on boot
-- Global hotkey (Alt+Space) to wake/hide window
-- Three-column layout: left nav, project list (chat-style), right detail panel
-- Folder-based project management with search/filter
+- Alt+Space global hotkey to wake/hide window
+- Folder-based project management with search filter
 - One-click launch development environment (VS Code, Cursor, Terminal, custom)
-- Template injection engine: copy files with `{{ VAR }}` variable substitution
-- Quick Git operations: Fetch / Pull / Push / Status
-- Dark / Light dual theme with borderless sharp-corner design
-- Chinese / English localization (i18n)
-
-### Tech Stack
-- Tauri v2 + React 18 + Tailwind CSS 4 + Zustand
-- Rust backend with JSON file persistence
-- MSVC toolchain, Visual Studio 2022 Build Tools
-
----
-
-## v0.0.1 (2026-05-19)
-
-### 功能
-- 系统托盘常驻，开机自启
-- 全局快捷键（Alt+Space）唤醒/隐藏窗口
-- 三栏布局：左侧图标导航、中间项目列表（类对话管理）、右侧详情面板
-- 以文件夹形式归档项目，支持搜索筛选
-- 一键启动开发环境（VS Code、Cursor、Terminal、自定义编辑器）
-- 模板注入引擎：文件复制 + `{{ VAR }}` 变量替换
-- 快速 Git 操作：获取 / 拉取 / 推送 / 状态
-- 暗色 / 亮色双主题，无边框直角低饱和设计
-- 中文 / 英文国际化（i18n）
-
-### 技术栈
-- Tauri v2 + React 18 + Tailwind CSS 4 + Zustand
-- Rust 后端 + JSON 文件持久化
-- MSVC 工具链，Visual Studio 2022 Build Tools
+- Template injection system with `{{ VAR }}` variable substitution
+- Basic Git operations: Fetch / Pull / Push / Status
+- Dark/light dual theme (borderless, sharp-corner design)
+- Chinese/English i18n via `useT()` hook
+- Settings modal overlay, ESC to close
+- Active monitor centering on wake
+- Auto-hide on focus loss
+- Toast notifications (success / error / info)
+- Button hover/press transition animations
+- Window titlebar hidden (`decorations: false`)
