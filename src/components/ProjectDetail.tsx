@@ -3,6 +3,7 @@ import { useAppStore } from "../lib/store";
 import { useT } from "../lib/i18n";
 import * as api from "../lib/tauri";
 import { Star, Play, GitBranch, LayoutTemplate } from "lucide-react";
+import { ActionButton } from "./ActionButton";
 
 const sectionLabel = {
   fontSize: 11,
@@ -14,13 +15,6 @@ const sectionLabel = {
 
 const cardStyle = { background: "var(--color-card)", padding: "14px 16px" };
 
-const btnBase = {
-  border: "none",
-  padding: "6px 14px",
-  fontSize: 12,
-  cursor: "pointer",
-  transition: "all 0.15s ease",
-} as const;
 export function ProjectDetail() {
   const t = useT();
   const selectedId = useAppStore((s) => s.selectedProjectId);
@@ -91,44 +85,26 @@ export function ProjectDetail() {
       <div style={cardStyle}>
         <div style={sectionLabel}>{t.launchEnv}</div>
         <div style={{ display: "flex", gap: 8, flexWrap: "wrap" }}>
-          {(settings?.editors || []).map((ed) => {
-            const isLoading = loadingEditors.has(ed.id);
-            return (
-            <button
+          {(settings?.editors || []).map((ed) => (
+            <ActionButton
               key={ed.id}
+              loading={loadingEditors.has(ed.id)}
               onClick={() => handleLaunch(ed.id, ed.name)}
-              disabled={isLoading}
-              style={{
-                ...btnBase,
-                background: "var(--color-primary)", color: "var(--color-primary-fg)",
-                ...(isLoading ? { opacity: 0.5, cursor: "default" } : {}),
-              }}
-              onMouseEnter={(e) => { if (!isLoading) e.currentTarget.style.filter = "brightness(1.2)"; }}
-              onMouseLeave={(e) => { if (!isLoading) e.currentTarget.style.filter = "none"; }}
-              onMouseDown={(e) => { if (!isLoading) e.currentTarget.style.transform = "scale(0.97)"; }}
-              onMouseUp={(e) => { if (!isLoading) e.currentTarget.style.transform = "none"; }}
-              className={isLoading ? "btn-loading" : ""}
+              style={{ background: "var(--color-primary)", color: "var(--color-primary-fg)" }}
             >
-              {isLoading ? "\u00B7 \u00B7 \u00B7" : ed.name}
-            </button>
-          )})}
-          <button
+              {ed.name}
+            </ActionButton>
+          ))}
+          <ActionButton
+            loading={launchingAll}
             onClick={handleLaunchAll}
-            disabled={launchingAll}
-            style={{
-              ...btnBase,
-              background: "var(--color-card)", color: "var(--color-text-secondary)",
-              display: "flex", alignItems: "center", gap: 4,
-              ...(launchingAll ? { opacity: 0.5, cursor: "default" } : {}),
-            }}
-            onMouseEnter={(e) => { if (!launchingAll) { e.currentTarget.style.filter = "brightness(1.2)"; e.currentTarget.style.color = "var(--color-text)"; } }}
-            onMouseLeave={(e) => { if (!launchingAll) { e.currentTarget.style.filter = "none"; e.currentTarget.style.color = "var(--color-text-secondary)"; } }}
-            onMouseDown={(e) => { if (!launchingAll) e.currentTarget.style.transform = "scale(0.97)"; }}
-            onMouseUp={(e) => { if (!launchingAll) e.currentTarget.style.transform = "none"; }}
-            className={launchingAll ? "btn-loading" : ""}
+            style={{ background: "var(--color-card)", color: "var(--color-text-secondary)" }}
           >
-            {launchingAll ? "\u00B7 \u00B7 \u00B7" : <><Play size={14} strokeWidth={1.5} /> {t.launchAll.replace("\u25B6 ", "")}</>}
-          </button>
+            <span style={{ display: "flex", alignItems: "center", gap: 4 }}>
+              <Play size={14} strokeWidth={1.5} />
+              {t.launchAll.replace("\u25B6 ", "")}
+            </span>
+          </ActionButton>
         </div>
       </div>
 
@@ -213,28 +189,17 @@ function GitSection({ projectPath }: { projectPath: string }) {
           [t.pull, () => api.gitPull(projectPath)],
           [t.push, () => api.gitPush(projectPath)],
           [t.status, () => api.gitStatus(projectPath)],
-        ] as const).map(([label, fn]) => {
-          const isActive = loadingOp === label;
-          return (
-          <button
+        ] as const).map(([label, fn]) => (
+          <ActionButton
             key={label}
+            loading={loadingOp === label}
+            disabled={loadingOp !== "" && loadingOp !== label}
             onClick={() => runGit(label, fn)}
-            disabled={loadingOp !== ""}
-            style={{
-              background: "var(--color-card)", color: "var(--color-text-secondary)",
-              border: "none", padding: "6px 14px", fontSize: 12, cursor: isActive ? "default" : "pointer",
-              opacity: loadingOp !== "" && !isActive ? 0.5 : 1,
-              transition: "all 0.15s ease",
-            }}
-            onMouseEnter={(e) => { if (!isActive) { e.currentTarget.style.filter = "brightness(1.2)"; e.currentTarget.style.color = "var(--color-text)"; } }}
-            onMouseLeave={(e) => { if (!isActive) { e.currentTarget.style.filter = "none"; e.currentTarget.style.color = "var(--color-text-secondary)"; } }}
-            onMouseDown={(e) => { if (!isActive) e.currentTarget.style.transform = "scale(0.97)"; }}
-            onMouseUp={(e) => { if (!isActive) e.currentTarget.style.transform = "none"; }}
-            className={isActive ? "btn-loading" : ""}
+            style={{ background: "var(--color-card)", color: "var(--color-text-secondary)" }}
           >
-            {isActive ? "\u00B7 \u00B7 \u00B7" : label}
-          </button>
-        )})}
+            {label}
+          </ActionButton>
+        ))}
       </div>
       {status && <div style={{ fontSize: 11, color: "var(--color-text-muted)", marginBottom: 8 }}>{status}</div>}
       {output && (
@@ -290,24 +255,13 @@ function TemplateSection({ projectId, projectPath }: { projectId: string; projec
         </div>
       </div>
 
-      <button
+      <ActionButton
+        loading={injecting}
         onClick={handleInject}
-        disabled={injecting}
-        style={{
-          background: "var(--color-primary)", color: "var(--color-primary-fg)",
-          border: "none", padding: "8px 16px", fontSize: 12,
-          cursor: injecting ? "default" : "pointer",
-          opacity: injecting ? 0.5 : 1,
-          transition: "all 0.15s ease",
-        }}
-        onMouseEnter={(e) => { if (!injecting) e.currentTarget.style.filter = "brightness(1.2)"; }}
-        onMouseLeave={(e) => { if (!injecting) e.currentTarget.style.filter = "none"; }}
-        onMouseDown={(e) => { if (!injecting) e.currentTarget.style.transform = "scale(0.97)"; }}
-        onMouseUp={(e) => { if (!injecting) e.currentTarget.style.transform = "none"; }}
-        className={injecting ? "btn-loading" : ""}
+        style={{ background: "var(--color-primary)", color: "var(--color-primary-fg)", padding: "8px 16px" }}
       >
-        {injecting ? "\u00B7 \u00B7 \u00B7" : t.injectTemplate}
-      </button>
+        {t.injectTemplate}
+      </ActionButton>
 
       {status && (
         <div style={{ fontSize: 12, color: "var(--color-text-secondary)", marginTop: 10 }}>{status}</div>
