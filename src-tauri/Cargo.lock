@@ -2053,7 +2053,7 @@ dependencies = [
 ]
 
 [[package]]
-name = "mutsumi-launcher"
+name = "mutsumi-s-pres"
 version = "0.1.0"
 dependencies = [
  "chrono",

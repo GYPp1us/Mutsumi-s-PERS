@@ -33,7 +33,7 @@ cargo check --manifest-path src-tauri/Cargo.toml  # 仅检查 Rust 语法
 ```
 
 构建产物：
-- `src-tauri/target/debug/mutsumi-launcher.exe` — 可执行文件
+- `src-tauri/target/debug/mutsumi-s-pres.exe` — 可执行文件
 - `src-tauri/target/debug/bundle/msi/` — MSI 安装包
 - `src-tauri/target/debug/bundle/nsis/` — NSIS 安装包
 
@@ -60,7 +60,7 @@ cargo check --manifest-path src-tauri/Cargo.toml
 
 **常见构建失败：**
 
-- **`拒绝访问 (os error 5)`** — exe 正在运行被锁定。先 `Get-Process -Name "mutsumi-launcher" \| Stop-Process -Force` 再构建
+- **`拒绝访问 (os error 5)`** — exe 正在运行被锁定。先 `Get-Process -Name "mutsumi-s-pres" \| Stop-Process -Force` 再构建
 - **`link.exe not found`** — 工具链不是 MSVC。`rustup default stable-x86_64-pc-windows-msvc`
 - **`edition2024` 错误** — Rust 版本太旧。`rustup update`
 - 构建耗时约 2 分钟（首次完整编译），增量编译 ~15s
@@ -78,13 +78,13 @@ React 组件 → Zustand (src/lib/store.ts) → tauri.ts (invoke IPC) → Rust C
 
 前端不直接调 `invoke()`，全部走 `src/lib/tauri.ts` 的封装函数。
 
-**数据存储**：`%APPDATA%\mutsumi-launcher\projects.json`。首次启动 `store.rs:load_or_default()` 自动生成默认配置（含 VS Code + Terminal 编辑器预设）。
+**数据存储**：`%APPDATA%\mutsumi-s-pres\projects.json`。首次启动 `store.rs:load_or_default()` 自动生成默认配置（含 VS Code + Terminal 编辑器预设）。
 
 ## 关键约定
 
 - **编辑器配置**：`args` 数组中的 `{path}` 在启动时替换为项目路径
 - **模板变量**：`{{ VAR_NAME }}`（双花括号），替换文件名和文件内容
-- **模板目录**：`%APPDATA%\mutsumi-launcher\templates\<name>\`，必须含 `template.json`
+- **模板目录**：`%APPDATA%\mutsumi-s-pres\templates\<name>\`，必须含 `template.json`
 - **主题**：CSS 变量在 `src/index.css` 的 `@theme` 块定义，via `data-theme="dark|light"`
 ## 设计原则
 

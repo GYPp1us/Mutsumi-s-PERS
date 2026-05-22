@@ -1,4 +1,4 @@
-# Mutsumi Launcher
+# Mutsumi's PRES
 
 本地项目环境 GUI 管理工具。快捷键一键唤醒，文件夹归档项目，快速启动开发环境。
 
@@ -19,7 +19,7 @@
 | GUI 框架 | Tauri v2 |
 | 前端 | React 18 + Tailwind CSS 4 + Zustand |
 | 后端 | Rust |
-| 存储 | JSON 文件 (`%APPDATA%\mutsumi-launcher\projects.json`) |
+| 存储 | JSON 文件 (`%APPDATA%\mutsumi-s-pres\projects.json\`) |
 
 ## 开发环境要求
 
@@ -44,7 +44,7 @@ cargo tauri build
 ## 项目结构
 
 ```
-mutsumi-launcher/
+mutsumi-s-pres/
 ├── src-tauri/              # Rust 后端
 │   └── src/
 │       ├── main.rs         # 入口
@@ -77,7 +77,7 @@ mutsumi-launcher/
 
 ## 模板使用
 
-1. 在 `%APPDATA%\mutsumi-launcher\templates\` 下创建文件夹
+1. 在 `%APPDATA%\mutsumi-s-pres\templates\` 下创建文件夹
 2. 在文件夹中放入任意文件
 3. 添加 `template.json` 描述模板元信息
 

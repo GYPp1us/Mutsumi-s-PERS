@@ -1,9 +1,16 @@
 # Changelog
 
+## [0.2.4] - 2026-05-23
+
+### Changed
+- CI: `tauri-action@v0` + `softprops/action-gh-release` for proper asset upload
+- CI version sync strips pre-release suffix (e.g. `v0.2.4-beta` → `0.2.4`)
+- Create `CHANGELOG.md` with Keep a Changelog format
+- AGENTS.md: document changelog maintenance convention
+
 ## [0.2.3] - 2026-05-22
 
 ### Changed
-- CI uses `tauri-action@v2` for proper Release asset upload
 - CI build mode: `--debug` → release
 
 ## [0.2.2] - 2026-05-22
