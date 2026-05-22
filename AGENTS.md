@@ -86,6 +86,10 @@ React 组件 → Zustand (src/lib/store.ts) → tauri.ts (invoke IPC) → Rust C
 - **模板变量**：`{{ VAR_NAME }}`（双花括号），替换文件名和文件内容
 - **模板目录**：`%APPDATA%\mutsumi-launcher\templates\<name>\`，必须含 `template.json`
 - **主题**：CSS 变量在 `src/index.css` 的 `@theme` 块定义，via `data-theme="dark|light"`
+## 设计原则
+
+- **无窗口命令行**：所有 Rust `Command` 必须加 `creation_flags(0x08000000)`（`CREATE_NO_WINDOW`），隐式执行不弹控制台窗口
+- **执行中动画**：所有触发异步操作的按钮必须有 loading 态（`btn-loading` CSS class + `disabled`），文字显示 `· · ·`，禁止重复点击
 - **全直角**：`src/index.css` 有 `border-radius: 0 !important`
 - **窗口默认隐藏**：`tauri.conf.json` 中 `visible: false`，通过托盘/快捷键唤醒
 

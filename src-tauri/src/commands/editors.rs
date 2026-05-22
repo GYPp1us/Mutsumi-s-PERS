@@ -1,6 +1,9 @@
 use tauri::State;
 use std::process::Command;
+use std::os::windows::process::CommandExt;
 use crate::AppState;
+
+const CREATE_NO_WINDOW: u32 = 0x08000000;
 
 #[tauri::command]
 pub async fn launch_editor(state: State<'_, AppState>, editor_id: String, project_path: String) -> Result<(), String> {
@@ -19,6 +22,7 @@ pub async fn launch_editor(state: State<'_, AppState>, editor_id: String, projec
 
     Command::new(&path)
         .args(&args)
+        .creation_flags(CREATE_NO_WINDOW)
         .spawn()
         .map_err(|e| format!("Failed to launch {}: {}", editor.name, e))?;
 

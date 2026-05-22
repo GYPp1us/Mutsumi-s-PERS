@@ -28,21 +28,27 @@ export function ProjectDetail() {
   const settings = useAppStore((s) => s.settings);
   const toggleStar = useAppStore((s) => s.toggleStar);
   const addToast = useAppStore((s) => s.addToast);
+  const [loadingEditors, setLoadingEditors] = useState<Set<string>>(new Set());
+  const [launchingAll, setLaunchingAll] = useState(false);
 
   const project = projects.find((p) => p.id === selectedId);
   if (!project)
     return <div style={{ color: "var(--color-text-muted)" }}>{t.selectProject}</div>;
 
   const handleLaunch = async (editorId: string, editorName: string) => {
+    setLoadingEditors((prev) => new Set(prev).add(editorId));
     try {
       await api.launchEditor(editorId, project.path);
       addToast(`\u2713 ${editorName}`, "success");
     } catch (e) {
       addToast(`\u2717 ${editorName}: ${e}`, "error");
+    } finally {
+      setLoadingEditors((prev) => { const next = new Set(prev); next.delete(editorId); return next; });
     }
   };
 
   const handleLaunchAll = async () => {
+    setLaunchingAll(true);
     const editors =
       project.editors.length > 0
         ? project.editors
@@ -51,6 +57,7 @@ export function ProjectDetail() {
       const ed = settings?.editors.find((e) => e.id === id);
       await handleLaunch(id, ed?.name || id);
     }
+    setLaunchingAll(false);
   };
 
   return (
@@ -84,36 +91,43 @@ export function ProjectDetail() {
       <div style={cardStyle}>
         <div style={sectionLabel}>{t.launchEnv}</div>
         <div style={{ display: "flex", gap: 8, flexWrap: "wrap" }}>
-          {(settings?.editors || []).map((ed) => (
+          {(settings?.editors || []).map((ed) => {
+            const isLoading = loadingEditors.has(ed.id);
+            return (
             <button
               key={ed.id}
               onClick={() => handleLaunch(ed.id, ed.name)}
+              disabled={isLoading}
               style={{
                 ...btnBase,
                 background: "var(--color-primary)", color: "var(--color-primary-fg)",
+                ...(isLoading ? { opacity: 0.5, cursor: "default" } : {}),
               }}
-              onMouseEnter={(e) => (e.currentTarget.style.filter = "brightness(1.2)")}
-              onMouseLeave={(e) => (e.currentTarget.style.filter = "none")}
-              onMouseDown={(e) => (e.currentTarget.style.transform = "scale(0.97)")}
-              onMouseUp={(e) => (e.currentTarget.style.transform = "none")}
+              onMouseEnter={(e) => { if (!isLoading) e.currentTarget.style.filter = "brightness(1.2)"; }}
+              onMouseLeave={(e) => { if (!isLoading) e.currentTarget.style.filter = "none"; }}
+              onMouseDown={(e) => { if (!isLoading) e.currentTarget.style.transform = "scale(0.97)"; }}
+              onMouseUp={(e) => { if (!isLoading) e.currentTarget.style.transform = "none"; }}
+              className={isLoading ? "btn-loading" : ""}
             >
-              {ed.name}
+              {isLoading ? "\u00B7 \u00B7 \u00B7" : ed.name}
             </button>
-          ))}
+          )})}
           <button
             onClick={handleLaunchAll}
+            disabled={launchingAll}
             style={{
               ...btnBase,
               background: "var(--color-card)", color: "var(--color-text-secondary)",
               display: "flex", alignItems: "center", gap: 4,
+              ...(launchingAll ? { opacity: 0.5, cursor: "default" } : {}),
             }}
-            onMouseEnter={(e) => { e.currentTarget.style.filter = "brightness(1.2)"; e.currentTarget.style.color = "var(--color-text)"; }}
-            onMouseLeave={(e) => { e.currentTarget.style.filter = "none"; e.currentTarget.style.color = "var(--color-text-secondary)"; }}
-            onMouseDown={(e) => (e.currentTarget.style.transform = "scale(0.97)")}
-            onMouseUp={(e) => (e.currentTarget.style.transform = "none")}
+            onMouseEnter={(e) => { if (!launchingAll) { e.currentTarget.style.filter = "brightness(1.2)"; e.currentTarget.style.color = "var(--color-text)"; } }}
+            onMouseLeave={(e) => { if (!launchingAll) { e.currentTarget.style.filter = "none"; e.currentTarget.style.color = "var(--color-text-secondary)"; } }}
+            onMouseDown={(e) => { if (!launchingAll) e.currentTarget.style.transform = "scale(0.97)"; }}
+            onMouseUp={(e) => { if (!launchingAll) e.currentTarget.style.transform = "none"; }}
+            className={launchingAll ? "btn-loading" : ""}
           >
-            <Play size={14} strokeWidth={1.5} />
-            {t.launchAll.replace("\u25B6 ", "")}
+            {launchingAll ? "\u00B7 \u00B7 \u00B7" : <><Play size={14} strokeWidth={1.5} /> {t.launchAll.replace("\u25B6 ", "")}</>}
           </button>
         </div>
       </div>
@@ -169,8 +183,10 @@ function GitSection({ projectPath }: { projectPath: string }) {
   const addToast = useAppStore((s) => s.addToast);
   const [status, setStatus] = useState<string>("");
   const [output, setOutput] = useState<string>("");
+  const [loadingOp, setLoadingOp] = useState<string>("");
 
   const runGit = async (op: string, fn: () => Promise<string>) => {
+    setLoadingOp(op);
     setStatus(t.runningGit(op));
     setOutput("");
     try {
@@ -182,6 +198,7 @@ function GitSection({ projectPath }: { projectPath: string }) {
       addToast(`\u2717 git ${op}: ${e}`, "error");
     }
     setStatus("");
+    setLoadingOp("");
   };
 
   return (
@@ -196,23 +213,28 @@ function GitSection({ projectPath }: { projectPath: string }) {
           [t.pull, () => api.gitPull(projectPath)],
           [t.push, () => api.gitPush(projectPath)],
           [t.status, () => api.gitStatus(projectPath)],
-        ] as const).map(([label, fn]) => (
+        ] as const).map(([label, fn]) => {
+          const isActive = loadingOp === label;
+          return (
           <button
             key={label}
             onClick={() => runGit(label, fn)}
+            disabled={loadingOp !== ""}
             style={{
               background: "var(--color-card)", color: "var(--color-text-secondary)",
-              border: "none", padding: "6px 14px", fontSize: 12, cursor: "pointer",
+              border: "none", padding: "6px 14px", fontSize: 12, cursor: isActive ? "default" : "pointer",
+              opacity: loadingOp !== "" && !isActive ? 0.5 : 1,
               transition: "all 0.15s ease",
             }}
-            onMouseEnter={(e) => { e.currentTarget.style.filter = "brightness(1.2)"; e.currentTarget.style.color = "var(--color-text)"; }}
-            onMouseLeave={(e) => { e.currentTarget.style.filter = "none"; e.currentTarget.style.color = "var(--color-text-secondary)"; }}
-            onMouseDown={(e) => (e.currentTarget.style.transform = "scale(0.97)")}
-            onMouseUp={(e) => (e.currentTarget.style.transform = "none")}
+            onMouseEnter={(e) => { if (!isActive) { e.currentTarget.style.filter = "brightness(1.2)"; e.currentTarget.style.color = "var(--color-text)"; } }}
+            onMouseLeave={(e) => { if (!isActive) { e.currentTarget.style.filter = "none"; e.currentTarget.style.color = "var(--color-text-secondary)"; } }}
+            onMouseDown={(e) => { if (!isActive) e.currentTarget.style.transform = "scale(0.97)"; }}
+            onMouseUp={(e) => { if (!isActive) e.currentTarget.style.transform = "none"; }}
+            className={isActive ? "btn-loading" : ""}
           >
-            {label}
+            {isActive ? "\u00B7 \u00B7 \u00B7" : label}
           </button>
-        ))}
+        )})}
       </div>
       {status && <div style={{ fontSize: 11, color: "var(--color-text-muted)", marginBottom: 8 }}>{status}</div>}
       {output && (
@@ -232,8 +254,10 @@ function TemplateSection({ projectId, projectPath }: { projectId: string; projec
   const projects = useAppStore((s) => s.projects);
   const addToast = useAppStore((s) => s.addToast);
   const [status, setStatus] = useState<string>("");
+  const [injecting, setInjecting] = useState(false);
 
   const handleInject = async () => {
+    setInjecting(true);
     setStatus(t.injecting);
     try {
       const result = await api.injectTemplate("", projectPath, [], "skip");
@@ -242,6 +266,8 @@ function TemplateSection({ projectId, projectPath }: { projectId: string; projec
       addToast(t.injectedFiles(result.length, name), "success");
     } catch (e) {
       addToast(t.error(e), "error");
+    } finally {
+      setInjecting(false);
     }
   };
 
@@ -266,17 +292,21 @@ function TemplateSection({ projectId, projectPath }: { projectId: string; projec
 
       <button
         onClick={handleInject}
+        disabled={injecting}
         style={{
           background: "var(--color-primary)", color: "var(--color-primary-fg)",
-          border: "none", padding: "8px 16px", fontSize: 12, cursor: "pointer",
+          border: "none", padding: "8px 16px", fontSize: 12,
+          cursor: injecting ? "default" : "pointer",
+          opacity: injecting ? 0.5 : 1,
           transition: "all 0.15s ease",
         }}
-        onMouseEnter={(e) => (e.currentTarget.style.filter = "brightness(1.2)")}
-        onMouseLeave={(e) => (e.currentTarget.style.filter = "none")}
-        onMouseDown={(e) => (e.currentTarget.style.transform = "scale(0.97)")}
-        onMouseUp={(e) => (e.currentTarget.style.transform = "none")}
+        onMouseEnter={(e) => { if (!injecting) e.currentTarget.style.filter = "brightness(1.2)"; }}
+        onMouseLeave={(e) => { if (!injecting) e.currentTarget.style.filter = "none"; }}
+        onMouseDown={(e) => { if (!injecting) e.currentTarget.style.transform = "scale(0.97)"; }}
+        onMouseUp={(e) => { if (!injecting) e.currentTarget.style.transform = "none"; }}
+        className={injecting ? "btn-loading" : ""}
       >
-        {t.injectTemplate}
+        {injecting ? "\u00B7 \u00B7 \u00B7" : t.injectTemplate}
       </button>
 
       {status && (

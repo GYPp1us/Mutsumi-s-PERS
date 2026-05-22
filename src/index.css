@@ -90,3 +90,13 @@ button {
 .item-interactive {
   transition: background 0.12s ease, opacity 0.12s ease;
 }
+
+@keyframes btn-pulse {
+  0%, 100% { opacity: 0.4; }
+  50% { opacity: 0.8; }
+}
+
+.btn-loading {
+  animation: btn-pulse 0.8s ease-in-out infinite;
+  pointer-events: none;
+}
