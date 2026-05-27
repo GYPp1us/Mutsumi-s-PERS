@@ -84,8 +84,10 @@ React → Zustand (src/lib/store.ts) → tauri.ts (invoke 封装) → Rust Comma
 
 ## 分支 & Changelog
 
-- `dev` 日常开发 → PR → `master` → 打 `v*` tag → CI 自动发布
-- 每次合入 master 时，在 `CHANGELOG.md` 顶部追加：
+- **禁止在 `master` 或 `dev` 上直接提交**。所有改动（无论大小）都从 `master` 签出新分支 → PR → `master`
+- 分支命名：`feat/<name>`（功能）、`fix/<name>`（修复）、`chore/<name>`（杂项）、`docs/<name>`（文档）
+- 打 `v*` tag → CI 自动发布
+- 每次 PR 合入 master 时，在 `CHANGELOG.md` 顶部追加：
 
 ```markdown
 ## [版本号] - YYYY-MM-DD
