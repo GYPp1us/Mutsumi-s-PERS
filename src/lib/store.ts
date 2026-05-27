@@ -32,6 +32,12 @@ interface AppStore {
   togglePin: () => void;
   addToast: (message: string, type: ToastType) => void;
   removeToast: (id: string) => void;
+  updateAvailable: { version: string; body?: string } | null;
+  updateProgress: { downloaded: number; total: number } | null;
+  updateStatus: "idle" | "checking" | "available" | "downloading" | "ready" | "error";
+  setUpdateAvailable: (update: { version: string; body?: string } | null) => void;
+  setUpdateProgress: (progress: { downloaded: number; total: number } | null) => void;
+  setUpdateStatus: (status: "idle" | "checking" | "available" | "downloading" | "ready" | "error") => void;
 }
 
 export const useAppStore = create<AppStore>((set, get) => ({
@@ -43,6 +49,9 @@ export const useAppStore = create<AppStore>((set, get) => ({
   showSettings: false,
   toasts: [],
   pinned: false,
+  updateAvailable: null,
+  updateProgress: null,
+  updateStatus: "idle",
 
   loadProjects: async () => {
     try {
@@ -111,6 +120,10 @@ export const useAppStore = create<AppStore>((set, get) => ({
     set({ pinned: next });
     try { await api.setPinned(next); } catch { /* ignore */ }
   },
+
+  setUpdateAvailable: (update) => set({ updateAvailable: update }),
+  setUpdateProgress: (progress) => set({ updateProgress: progress }),
+  setUpdateStatus: (status) => set({ updateStatus: status }),
 
   addToast: (message, type) => {
     const id = crypto.randomUUID();

@@ -1,5 +1,16 @@
 # Changelog
 
+## [1.0.0] - 2026-05-23
+
+### Added
+- Project renamed to Mutsumi-s PRES
+- CHANGELOG.md with Keep a Changelog format
+
+### Changed
+- CI: `softprops/action-gh-release` for proper Release asset upload
+- CI version sync strips pre-release suffix
+- All references updated from `mutsumi-launcher` to `mutsumi-s-pres`
+
 ## [0.2.4] - 2026-05-23
 
 ### Changed

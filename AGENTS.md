@@ -1,122 +1,91 @@
 # AGENTS.md
 
-## 项目定位
+Tauri v2 桌面应用（仅 Windows）。`src/` = React 18 + Tailwind v4，`src-tauri/` = Rust 后端。
 
-Tauri v2 桌面应用——不是 Web 应用。`src/` 是前端（React + Tailwind v4），`src-tauri/` 是 Rust 后端。
+## 环境
 
-## 环境要求
+- Rust **必须** MSVC 工具链：`stable-x86_64-pc-windows-msvc`（GNU 链 DLL 符号超限）
+- VS 2022 Build Tools（C++ 工作负载），否则 `link.exe` 缺失
+- Node.js >= 20，WebView2（Win10/11 自带）
 
-- **Rust 必须使用 MSVC 工具链**（`stable-x86_64-pc-windows-msvc`）。GNU 工具链会因 DLL 导出符号数超限导致链接失败
-- **Visual Studio 2022 Build Tools**（C++ 工作负载），否则 link.exe 缺失
-- Node.js >= 20
-- WebView2（Win10/11 自带）
-
-```bash
-# 确认工具链
-rustup show active-toolchain   # 必须是 msvc
 ```
-
-## 常见踩坑
-
-- **Vite `base` 必须设为 `"./"`**：默认 `/` 绝对路径导致构建的 exe 加载资源失败（显示"拒绝连接"）。`cargo tauri dev` 不受影响因为走 Vite dev server
-- **`main.rs` 必须无条件 `#![windows_subsystem = "windows"]`**：默认的 `cfg_attr(not(debug_assertions), ...)` 在 debug build 会弹控制台窗口
-- **Rust 版本要 >= 1.78**：旧版 Cargo 不支持 `edition2024` 的传递依赖，会导致下载 crate 失败
+rustup show active-toolchain  # 确认 msvc
+```
 
 ## 常用命令
 
 ```bash
-npm install                     # 仅前端依赖
-cargo tauri dev                 # 开发模式（Vite hmr + Rust 重编译）
-cargo tauri build --debug       # 构建 debug 版（产物在 src-tauri/target/debug/）
-npm run build                   # 仅前端构建，不编译 Rust
-cargo check --manifest-path src-tauri/Cargo.toml  # 仅检查 Rust 语法
+npm install                            # 前端依赖
+npm run build                          # tsc -b && vite build
+npm run lint                           # eslint .
+cargo tauri dev                        # 开发模式（Vite HMR + Rust 重编译）
+cargo tauri build --debug              # 构建 debug 版
+cargo check --manifest-path src-tauri/Cargo.toml  # 仅 Rust 检查
 ```
 
-构建产物：
-- `src-tauri/target/debug/mutsumi-s-pres.exe` — 可执行文件
-- `src-tauri/target/debug/bundle/msi/` — MSI 安装包
-- `src-tauri/target/debug/bundle/nsis/` — NSIS 安装包
+`npm run build` 先跑 `tsc -b`（TypeScript 严格模式：`noUnusedLocals` + `noUnusedParameters`），再跑 Vite。项目中无测试框架。
 
-## 构建流程
+## 踩坑
 
-`cargo tauri build --debug` 内部执行顺序：
-
-1. `npm run build`（`beforeBuildCommand`）→ Vite 输出到 `dist/`
-2. `cargo build`（Rust 编译）→ `generate_context!()` 宏嵌入 `dist/` 到二进制
-3. WiX / NSIS 打包 → 生成 MSI + NSIS 安装包
-
-**构建前检查清单：**
-
-```bash
-# 1. 确认工具链
-rustup show active-toolchain    # 必须 msvc。不是则 rustup default stable-x86_64-pc-windows-msvc
-
-# 2. 确认前端能过
-npm run build                   # tsc + vite build，无报错即可
-
-# 3. 确认 Rust 能过
-cargo check --manifest-path src-tauri/Cargo.toml
-```
-
-**常见构建失败：**
-
-- **`拒绝访问 (os error 5)`** — exe 正在运行被锁定。先 `Get-Process -Name "mutsumi-s-pres" \| Stop-Process -Force` 再构建
-- **`link.exe not found`** — 工具链不是 MSVC。`rustup default stable-x86_64-pc-windows-msvc`
-- **`edition2024` 错误** — Rust 版本太旧。`rustup update`
-- 构建耗时约 2 分钟（首次完整编译），增量编译 ~15s
+- **Vite `base` 必须是 `"./"`**：默认 `/` 导致构建后 exe 加载资源失败（"拒绝连接"）
+- **`main.rs` 必须无条件 `#![windows_subsystem = "windows"]`**：`cfg_attr` 在 debug 会弹控制台
+- **`Cargo.toml` 的 `crate-type` 必须含 `"staticlib"`**（`["staticlib", "cdylib", "rlib"]`），缺了会链接失败
+- **`拒绝访问 (os error 5)`**：旧进程锁定。`Get-Process -Name "mutsumi-s-pres" | Stop-Process -Force`
+- **`link.exe not found`**：工具链不是 MSVC。`rustup default stable-x86_64-pc-windows-msvc`
+- **Rust 最低 1.77.2**（Cargo.toml `rust-version`），新版直接 `rustup update`
 
 ## 架构
 
 ```
-React 组件 → Zustand (src/lib/store.ts) → tauri.ts (invoke IPC) → Rust Command → store.rs (JSON)
+React → Zustand (src/lib/store.ts) → tauri.ts (invoke 封装) → Rust Command → store.rs (JSON)
 ```
 
-**IPC 命令清单**（13 个）：
-`list_projects` `add_project` `remove_project` `update_project`
-`launch_editor` `git_status` `git_pull` `git_push` `git_fetch`
-`inject_template` `get_settings` `update_settings` `hide_window`
+**15 个 IPC 命令**（前端全部走 `src/lib/tauri.ts`，不直接调 `invoke`）：
 
-前端不直接调 `invoke()`，全部走 `src/lib/tauri.ts` 的封装函数。
+| 同步 | 异步 |
+|------|------|
+| `list_projects` `add_project` `remove_project` `update_project` | `launch_editor` |
+| `get_settings` `update_settings` | `git_status` `git_pull` `git_push` `git_fetch` |
+| `hide_window` `set_pinned` `start_drag_pin` | |
+| `inject_template` | |
 
-**数据存储**：`%APPDATA%\mutsumi-s-pres\projects.json`。首次启动 `store.rs:load_or_default()` 自动生成默认配置（含 VS Code + Terminal 编辑器预设）。
+新增 Rust 命令时注意 `async` vs sync 签名会影响 Tauri 线程模型。
+
+**数据存储**：`%APPDATA%\mutsumi-s-pres\projects.json`。`store.rs:load_or_default()` 自动生成默认配置（VS Code + Terminal 编辑器预设）。命令都走 `Mutex<store>`，修改后调 `store.save()`。
+
+**自动更新**：`tauri-plugin-updater` + GitHub Releases。构建时 `createUpdaterArtifacts: true` 生成 `.sig`/`.zip` 产物，`tauri-action` 输出 `latest.json`。运行时前端 `check()` 拉取 manifest，验证签名后流式下载安装，`Windows passive` 模式静默升级。密钥在 `~/.tauri/mutsumi-pres.key`，公钥固化在 `tauri.conf.json`，私钥以 CI secret `TAURI_SIGNING_PRIVATE_KEY` 传入 `build.yml`。
 
 ## 关键约定
 
-- **编辑器配置**：`args` 数组中的 `{path}` 在启动时替换为项目路径
-- **模板变量**：`{{ VAR_NAME }}`（双花括号），替换文件名和文件内容
-- **模板目录**：`%APPDATA%\mutsumi-s-pres\templates\<name>\`，必须含 `template.json`
-- **主题**：CSS 变量在 `src/index.css` 的 `@theme` 块定义，via `data-theme="dark|light"`
+- **编辑器启动**：Rust 侧 `cmd /c start "" <path> <args>` 包装（`CREATE_NO_WINDOW` 会压制 GUI 窗口），`{path}` 替换为项目路径
+- **模板**：`{{ VAR_NAME }}` 替换文件名+内容，模板目录 `%APPDATA%\mutsumi-s-pres\templates\<name>\`，必须含 `template.json`
+- **主题**：`src/index.css` 的 `@theme` 块 + `[data-theme="dark|light"]` 覆盖，localStorage key `mutsumi-theme`
+- **国际化**：`src/lib/i18n.ts` 中英双语，`useT()` hook，`locale` 存 localStorage key `mutsumi-locale`
+- **窗口拖动**：`<div data-tauri-drag-region>` 在钻石图标上，mousedown 触发 `start_drag_pin` 防止拖动中失焦隐藏
+- **Pin 双状态**：`pinned`（用户主动钉选）+ `drag_pinned`（拖动中自动设），**两者都为 false** 才触发失焦隐藏
+
 ## 设计原则
 
-- **无窗口命令行**：所有 Rust `Command` 必须加 `creation_flags(0x08000000)`（`CREATE_NO_WINDOW`），隐式执行不弹控制台窗口
-- **执行中动画**：所有触发异步操作的按钮必须有 loading 态（`btn-loading` CSS class + `disabled`），文字显示 `· · ·`，禁止重复点击
-- **全直角**：`src/index.css` 有 `border-radius: 0 !important`
-- **窗口默认隐藏**：`tauri.conf.json` 中 `visible: false`，通过托盘/快捷键唤醒
+- **无窗口命令行**：所有 Rust `Command` 加 `creation_flags(0x08000000)`（`CREATE_NO_WINDOW`）
+- **Loading 态**：异步操作按钮必须加 `btn-loading` class + `disabled`，文字显示 `· · ·`，用 `<ActionButton>` 组件
+- **直角**：`border-radius: 0 !important`（`src/index.css:39`）
+- **失焦自动隐藏**：`on_window_event(Focused(false))` → `window.hide()`（除非 pinned）
+- **ESC 行为**：设置开则关设置，否则 `invoke("hide_window")`
+- **图标**：全 `lucide-react`，统一 `size={18}` `strokeWidth={1.5}`
 
-## 窗口行为
+## GitHub Actions (`.github/workflows/`)
 
-- **唤醒**：托盘左键 / 托盘菜单 "Show" / 全局快捷键 → `show_window_on_active_monitor()` → 鼠标所在屏幕居中显示
-- **隐藏**：ESC 键 → 前端 `invoke("hide_window")` → Rust 侧 `window.hide()`；窗口失去焦点自动隐藏（`on_window_event(Focused(false))`）
-- **设置弹窗**：左侧齿轮按钮打开，ESC 或点击遮罩关闭。`App.tsx` 渲染 `<SettingsModal />`，不占用路由
+| 文件 | 触发 | 内容 |
+|------|------|------|
+| `ci.yml` | push/PR → master | 前端 `tsc -b` + `vite build`（ubuntu），Rust `cargo check`（windows-msvc） |
+| `build.yml` | PR → master / `v*` tag / 手动 | `tauri-apps/tauri-action@v0` 构建，产物上传 Artifact。`v*` tag 发布到 Release |
 
-## 分支策略
+`build.yml` 从 git tag 同步版本号到 `tauri.conf.json` 后再构建。
 
-- `dev` — 开发分支，日常提交在这里
-- `master` — 发布分支，通过 PR 从 dev 合并
-- 发布流程：`dev` 开发 → PR → `master` → 打 `v*` tag → CI 自动构建发布
+## 分支 & Changelog
 
-## GitHub Actions（`.github/workflows/`）
-
-| 文件 | 触发条件 | 内容 |
-|------|---------|------|
-| `ci.yml` | push / PR → master | 前端：`tsc -b` + `vite build`（ubuntu）。Rust：`cargo check`（windows-msvc） |
-| `build.yml` | PR → master / `v*` tag / 手动 | 完整 Tauri 构建，产物上传为 Artifact |
-
-**`tauri-apps/tauri-action@v2` 依赖 `package.json` 中的 `"tauri": "tauri"` npm 脚本**，缺失会导致构建失败。
-
-## Changelog 维护
-
-每次 PR 合入 master 时，必须在 `CHANGELOG.md` 顶部按以下格式追加一行变更摘要：
+- `dev` 日常开发 → PR → `master` → 打 `v*` tag → CI 自动发布
+- 每次合入 master 时，在 `CHANGELOG.md` 顶部追加：
 
 ```markdown
 ## [版本号] - YYYY-MM-DD
@@ -125,22 +94,4 @@ React 组件 → Zustand (src/lib/store.ts) → tauri.ts (invoke IPC) → Rust C
 - 简短描述 (#PR号)
 ```
 
-版本号与 git tag 一致。不要跳过 PR 级别的 changelog 更新——`build.yml` 的 `releaseBody` 引用此文件生成 Release 正文。
-
-## 文件职责速查
-
-| 文件 | 职责 |
-|------|------|
-| `src-tauri/src/lib.rs` | 托盘 + 快捷键 + 插件 + 命令注册 + 失焦隐藏 + 居中唤醒 |
-| `src-tauri/src/store.rs` | JSON 读写 + 数据模型 + 默认值 |
-| `src-tauri/src/commands/*.rs` | 每个文件一组 IPC 命令 |
-| `src/lib/store.ts` | Zustand 全局状态（projects / settings / navView / theme / locale / showSettings / toasts） |
-| `src/lib/tauri.ts` | invoke 封装，类型定义 |
-| `src/lib/i18n.ts` | 中英双语词条 + `useT()` hook + `LocaleCtx` |
-| `src/components/RightPanel.tsx` | 根据 selectedProjectId 路由 ProjectDetail / HomeView |
-| `src/components/ProjectDetail.tsx` | 项目详情（启动、Git 操作、模板注入、标签、活动） |
-| `src/components/Toast.tsx` | 固定右上角通知弹出层（success / error / info） |
-| `src/index.css` | Tailwind v4 @theme + 暗/亮双主题变量 + toast 动画 keyframe |
-| `lucide-react` | 图标库（18px stroke 1.5，250+ stroke icons，MIT） |
-| `src-tauri/tauri.conf.json` | 窗口尺寸（960×620）、decorations: false、visible: false、构建命令 |
-| `src-tauri/capabilities/default.json` | 权限白名单（shell/fs/dialog/shortcut/autostart） |
+版本号与 git tag 一致。`build.yml` 的 `releaseBody` 引用此文件生成 Release 正文。
