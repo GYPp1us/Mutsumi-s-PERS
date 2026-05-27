@@ -70,3 +70,29 @@ export const injectTemplate = (
     variables,
     conflict,
   });
+
+// --- Updater ---
+
+import { check } from "@tauri-apps/plugin-updater";
+import type { Update } from "@tauri-apps/plugin-updater";
+import { relaunch } from "@tauri-apps/plugin-process";
+
+export type UpdateProgressEvent =
+  | { event: "Started"; data: { contentLength?: number } }
+  | { event: "Progress"; data: { chunkLength: number } }
+  | { event: "Finished" };
+
+export const checkForUpdate = () => check();
+
+export const downloadAndInstallUpdate = async (
+  update: Update,
+  onEvent: (event: UpdateProgressEvent) => void
+) => {
+  await update.downloadAndInstall((e) => {
+    onEvent({
+      event: e.event as UpdateProgressEvent["event"],
+      data: e.data as UpdateProgressEvent["data"],
+    });
+  });
+  await relaunch();
+};
