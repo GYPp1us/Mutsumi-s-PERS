@@ -4,6 +4,7 @@ import { LeftNav } from "./components/LeftNav";
 import { ProjectList } from "./components/ProjectList";
 import { RightPanel } from "./components/RightPanel";
 import { SettingsView } from "./components/SettingsView";
+import { UpdateModal } from "./components/UpdateModal";
 import { ToastContainer } from "./components/Toast";
 import { LocaleCtx, getLocale } from "./lib/i18n";
 import { invoke } from "@tauri-apps/api/core";
@@ -53,6 +54,24 @@ export default function App() {
     loadSettings();
   }, []);
 
+  const setUpdateAvailable = useAppStore((s) => s.setUpdateAvailable);
+  const setUpdateStatus = useAppStore((s) => s.setUpdateStatus);
+
+  useEffect(() => {
+    (async () => {
+      try {
+        const { check } = await import("@tauri-apps/plugin-updater");
+        const update = await check();
+        if (update) {
+          setUpdateAvailable({ version: update.version, body: update.body });
+          setUpdateStatus("available");
+        }
+      } catch {
+        // offline or no endpoint — silent fail
+      }
+    })();
+  }, []);
+
   useEffect(() => {
     const onKeyDown = (e: KeyboardEvent) => {
       if (e.key === "Escape") {
@@ -84,6 +103,7 @@ export default function App() {
         <RightPanel />
       </div>
       <SettingsModal />
+      <UpdateModal />
       <ToastContainer />
     </LocaleCtx.Provider>
   );
