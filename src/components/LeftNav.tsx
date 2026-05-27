@@ -127,8 +127,9 @@ export function LeftNav() {
               setUpdateStatus("idle");
               addToast("\u2713 You\u2019re up to date", "info");
             }
-          } catch {
+          } catch (e) {
             setUpdateStatus("idle");
+            addToast(`Update check failed: ${e}`, "error");
           }
         }}
         title="Check for Updates"
