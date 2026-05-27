@@ -157,6 +157,10 @@ pub fn run() {
                         .build(),
                 )?;
             }
+
+            show_window_on_active_monitor(app.handle());
+            app.state::<AppState>().pinned.store(true, std::sync::atomic::Ordering::Relaxed);
+
             Ok(())
         })
         .invoke_handler(tauri::generate_handler![

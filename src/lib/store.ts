@@ -48,7 +48,7 @@ export const useAppStore = create<AppStore>((set, get) => ({
   locale: (localStorage.getItem("mutsumi-locale") as "zh" | "en") || "en",
   showSettings: false,
   toasts: [],
-  pinned: false,
+  pinned: true,
   updateAvailable: null,
   updateProgress: null,
   updateStatus: "idle",
