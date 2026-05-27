@@ -41,7 +41,7 @@
   },
   "plugins": {
     "updater": {
-      "pubkey": "dW50cnVzdGVkIGNvbW1lbnQ6IG1pbmlzaWduIHB1YmxpYyBrZXk6IDQ4RkUxMTEyRTIyQkVGOTUKUldTVjd5dmlFaEgrU0QxRG1CQjNBRXA5dHE4SWxaU3llZCtBeTBaWHNlemdnaGlLd2ZyWW9hN1UK",
+      "pubkey": "dW50cnVzdGVkIGNvbW1lbnQ6IG1pbmlzaWduIHB1YmxpYyBrZXk6IDM4ODBGRUNEMjYxRTBGMTEKUldRUkR4NG16ZjZBT0U1UHdZc0Z0KzNScElQcFFCanVCUnRhOHVLa3EwQXlhSFN6RUVBdG82UlEK",
       "endpoints": [
         "https://github.com/GYPp1us/Mutsumi-s-PERS/releases/latest/download/latest.json"
       ],
