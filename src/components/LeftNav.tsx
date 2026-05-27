@@ -1,6 +1,6 @@
 import { useAppStore } from "../lib/store";
 import { useT } from "../lib/i18n";
-import { Diamond, Folders, Pin, PinOff, Settings, Moon, Sun } from "lucide-react";
+import { Diamond, Folders, Pin, PinOff, Settings, Moon, Sun, Download } from "lucide-react";
 import { invoke } from "@tauri-apps/api/core";
 
 const btnBase = {
@@ -39,6 +39,10 @@ export function LeftNav() {
   const toggleTheme = useAppStore((s) => s.toggleTheme);
   const pinned = useAppStore((s) => s.pinned);
   const togglePin = useAppStore((s) => s.togglePin);
+  const updateStatus = useAppStore((s) => s.updateStatus);
+  const setUpdateAvailable = useAppStore((s) => s.setUpdateAvailable);
+  const setUpdateStatus = useAppStore((s) => s.setUpdateStatus);
+  const addToast = useAppStore((s) => s.addToast);
 
   return (
     <nav
@@ -108,6 +112,37 @@ export function LeftNav() {
         onMouseUp={pressOut}
       >
         <Settings size={18} strokeWidth={1.5} />
+      </button>
+
+      <button
+        onClick={async () => {
+          setUpdateStatus("checking");
+          try {
+            const { check } = await import("@tauri-apps/plugin-updater");
+            const update = await check();
+            if (update) {
+              setUpdateAvailable({ version: update.version, body: update.body });
+              setUpdateStatus("available");
+            } else {
+              setUpdateStatus("idle");
+              addToast("\u2713 You\u2019re up to date", "info");
+            }
+          } catch {
+            setUpdateStatus("idle");
+          }
+        }}
+        title="Check for Updates"
+        style={{
+          ...btnBase,
+          opacity: updateStatus === "checking" ? 0.5 : 0.7,
+        }}
+        disabled={updateStatus === "checking"}
+        onMouseEnter={hoverIn}
+        onMouseLeave={hoverOut}
+        onMouseDown={pressIn}
+        onMouseUp={pressOut}
+      >
+        <Download size={18} strokeWidth={1.5} />
       </button>
 
       <button
