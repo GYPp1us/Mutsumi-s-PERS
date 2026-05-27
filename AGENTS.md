@@ -53,6 +53,8 @@ React → Zustand (src/lib/store.ts) → tauri.ts (invoke 封装) → Rust Comma
 
 **数据存储**：`%APPDATA%\mutsumi-s-pres\projects.json`。`store.rs:load_or_default()` 自动生成默认配置（VS Code + Terminal 编辑器预设）。命令都走 `Mutex<store>`，修改后调 `store.save()`。
 
+**自动更新**：`tauri-plugin-updater` + GitHub Releases。构建时 `createUpdaterArtifacts: true` 生成 `.sig`/`.zip` 产物，`tauri-action` 输出 `latest.json`。运行时前端 `check()` 拉取 manifest，验证签名后流式下载安装，`Windows passive` 模式静默升级。密钥在 `~/.tauri/mutsumi-pres.key`，公钥固化在 `tauri.conf.json`，私钥以 CI secret `TAURI_SIGNING_PRIVATE_KEY` 传入 `build.yml`。
+
 ## 关键约定
 
 - **编辑器启动**：Rust 侧 `cmd /c start "" <path> <args>` 包装（`CREATE_NO_WINDOW` 会压制 GUI 窗口），`{path}` 替换为项目路径
