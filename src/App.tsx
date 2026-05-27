@@ -7,6 +7,7 @@ import { SettingsView } from "./components/SettingsView";
 import { UpdateModal } from "./components/UpdateModal";
 import { ToastContainer } from "./components/Toast";
 import { LocaleCtx, getLocale } from "./lib/i18n";
+import { checkForUpdate } from "./lib/tauri";
 import { invoke } from "@tauri-apps/api/core";
 
 function SettingsModal() {
@@ -60,8 +61,7 @@ export default function App() {
   useEffect(() => {
     (async () => {
       try {
-        const { check } = await import("@tauri-apps/plugin-updater");
-        const update = await check();
+        const update = await checkForUpdate();
         if (update) {
           setUpdateAvailable({ version: update.version, body: update.body });
           setUpdateStatus("available");

@@ -1,8 +1,7 @@
 import { useAppStore } from "../lib/store";
-import { useT } from "../lib/i18n";
 import { ActionButton } from "./ActionButton";
 import { checkForUpdate, downloadAndInstallUpdate } from "../lib/tauri";
-import { useEffect, useState } from "react";
+import { useState } from "react";
 
 const overlayStyle: React.CSSProperties = {
   position: "fixed", inset: 0, zIndex: 200,
@@ -25,7 +24,6 @@ const barInner: React.CSSProperties = {
 };
 
 export function UpdateModal() {
-  const t = useT();
   const available = useAppStore((s) => s.updateAvailable);
   const progress = useAppStore((s) => s.updateProgress);
   const status = useAppStore((s) => s.updateStatus);
@@ -58,14 +56,14 @@ export function UpdateModal() {
     setStatus("downloading");
     setProgress({ downloaded: 0, total: 0 });
     try {
+      let downloaded = 0;
       await downloadAndInstallUpdate(update, (event) => {
         if (event.event === "Started") {
           setProgress({ downloaded: 0, total: event.data.contentLength ?? 0 });
         } else if (event.event === "Progress") {
-          setProgress((prev) => ({
-            downloaded: (prev?.downloaded ?? 0) + event.data.chunkLength,
-            total: prev?.total ?? 0,
-          }));
+          downloaded += event.data.chunkLength;
+          const prev = useAppStore.getState().updateProgress;
+          setProgress({ downloaded, total: prev?.total ?? 0 });
         }
       });
     } catch (e) {

@@ -80,7 +80,7 @@ import { relaunch } from "@tauri-apps/plugin-process";
 export type UpdateProgressEvent =
   | { event: "Started"; data: { contentLength?: number } }
   | { event: "Progress"; data: { chunkLength: number } }
-  | { event: "Finished" };
+  | { event: "Finished"; data: Record<string, never> };
 
 export const checkForUpdate = () => check();
 
@@ -89,10 +89,14 @@ export const downloadAndInstallUpdate = async (
   onEvent: (event: UpdateProgressEvent) => void
 ) => {
   await update.downloadAndInstall((e) => {
-    onEvent({
-      event: e.event as UpdateProgressEvent["event"],
-      data: e.data as UpdateProgressEvent["data"],
-    });
+    const ev = e as { event: string; data?: { contentLength?: number; chunkLength?: number } };
+    if (ev.event === "Started") {
+      onEvent({ event: "Started", data: { contentLength: ev.data?.contentLength } });
+    } else if (ev.event === "Progress") {
+      onEvent({ event: "Progress", data: { chunkLength: ev.data?.chunkLength ?? 0 } });
+    } else {
+      onEvent({ event: "Finished", data: {} });
+    }
   });
   await relaunch();
 };

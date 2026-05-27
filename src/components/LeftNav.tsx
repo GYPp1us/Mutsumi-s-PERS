@@ -1,5 +1,6 @@
 import { useAppStore } from "../lib/store";
 import { useT } from "../lib/i18n";
+import { checkForUpdate } from "../lib/tauri";
 import { Diamond, Folders, Pin, PinOff, Settings, Moon, Sun, Download } from "lucide-react";
 import { invoke } from "@tauri-apps/api/core";
 
@@ -118,8 +119,7 @@ export function LeftNav() {
         onClick={async () => {
           setUpdateStatus("checking");
           try {
-            const { check } = await import("@tauri-apps/plugin-updater");
-            const update = await check();
+            const update = await checkForUpdate();
             if (update) {
               setUpdateAvailable({ version: update.version, body: update.body });
               setUpdateStatus("available");
