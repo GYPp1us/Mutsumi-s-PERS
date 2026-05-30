@@ -29,6 +29,7 @@ export interface Settings {
   theme: string;
   shortcut: string;
   autostart: boolean;
+  silent_launch: boolean;
   editors: EditorConfig[];
 }
 
