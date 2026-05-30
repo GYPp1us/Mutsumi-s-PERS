@@ -45,9 +45,13 @@ export function SettingsView() {
   const [updateFound, setUpdateFound] = useState<{ version: string; body?: string } | null>(null);
   const [upToDate, setUpToDate] = useState(false);
   const [autostartEnabled, setAutostartEnabled] = useState(false);
+  const [silentLaunchEnabled, setSilentLaunchEnabled] = useState(false);
 
   useEffect(() => {
-    if (settings) setAutostartEnabled(settings.autostart);
+    if (settings) {
+      setAutostartEnabled(settings.autostart);
+      setSilentLaunchEnabled(settings.silent_launch);
+    }
   }, [settings]);
 
   const setUpdateAvailable = useAppStore((s) => s.setUpdateAvailable);
@@ -182,35 +186,64 @@ export function SettingsView() {
         </div>
       </div>
 
-      <div style={{ ...cardStyle, display: "flex", justifyContent: "space-between", alignItems: "center" }}>
-        <span style={{ color: "var(--color-text-secondary)", fontSize: 13 }}>{t.autostart}</span>
-        <button
-          onClick={async () => {
-            const next = !autostartEnabled;
-            try {
-              if (next) await enableAutostart();
-              else await disableAutostart();
-              setAutostartEnabled(next);
-              if (settings) {
-                await api.updateSettings({ ...settings, autostart: next });
-                await loadSettings();
+      <div style={{ ...cardStyle, display: "flex", flexDirection: "column", gap: 10 }}>
+        <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center" }}>
+          <span style={{ color: "var(--color-text-secondary)", fontSize: 13 }}>{t.autostart}</span>
+          <button
+            onClick={async () => {
+              const next = !autostartEnabled;
+              try {
+                if (next) await enableAutostart();
+                else await disableAutostart();
+                setAutostartEnabled(next);
+                if (settings) {
+                  await api.updateSettings({ ...settings, autostart: next });
+                  await loadSettings();
+                }
+              } catch (e) {
+                addToast(`Autostart toggle failed: ${e}`, "error");
               }
-            } catch (e) {
-              addToast(`Autostart toggle failed: ${e}`, "error");
-            }
-          }}
-          style={{
-            width: 40, height: 22, borderRadius: 11, border: "none", cursor: "pointer",
-            background: autostartEnabled ? "var(--color-success)" : "var(--color-hover)",
-            position: "relative", transition: "all 0.15s ease",
-          }}
-        >
-          <div style={{
-            width: 18, height: 18, borderRadius: "50%", background: "#fff",
-            position: "absolute", top: 2,
-            left: autostartEnabled ? 20 : 2, transition: "all 0.15s ease",
-          }} />
-        </button>
+            }}
+            style={{
+              width: 40, height: 22, borderRadius: 11, border: "none", cursor: "pointer",
+              background: autostartEnabled ? "var(--color-success)" : "var(--color-hover)",
+              position: "relative", transition: "all 0.15s ease",
+            }}
+          >
+            <div style={{
+              width: 18, height: 18, borderRadius: "50%", background: "#fff",
+              position: "absolute", top: 2,
+              left: autostartEnabled ? 20 : 2, transition: "all 0.15s ease",
+            }} />
+          </button>
+        </div>
+
+        {autostartEnabled && (
+          <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center" }}>
+            <span style={{ color: "var(--color-text-secondary)", fontSize: 13 }}>{t.silentLaunch}</span>
+            <button
+              onClick={async () => {
+                const next = !silentLaunchEnabled;
+                setSilentLaunchEnabled(next);
+                if (settings) {
+                  await api.updateSettings({ ...settings, silent_launch: next });
+                  await loadSettings();
+                }
+              }}
+              style={{
+                width: 40, height: 22, borderRadius: 11, border: "none", cursor: "pointer",
+                background: silentLaunchEnabled ? "var(--color-success)" : "var(--color-hover)",
+                position: "relative", transition: "all 0.15s ease",
+              }}
+            >
+              <div style={{
+                width: 18, height: 18, borderRadius: "50%", background: "#fff",
+                position: "absolute", top: 2,
+                left: silentLaunchEnabled ? 20 : 2, transition: "all 0.15s ease",
+              }} />
+            </button>
+          </div>
+        )}
       </div>
 
       <div style={cardStyle}>
