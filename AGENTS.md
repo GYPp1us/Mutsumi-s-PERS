@@ -86,6 +86,7 @@ React → Zustand (src/lib/store.ts) → tauri.ts (invoke 封装) → Rust Comma
 
 - **禁止在 `master` 或 `dev` 上直接提交**。所有改动（无论大小）都从 `master` 签出新分支 → PR → `master`
 - 分支命名：`feat/<name>`（功能）、`fix/<name>`（修复）、`chore/<name>`（杂项）、`docs/<name>`（文档）
+- **拆分提交 + 及时验证**：每个逻辑完整的功能点单独 commit（如依赖安装 → 后端 → 前端），每完成一个功能后提醒用户验证
 - 打 `v*` tag → CI 自动发布
 - 每次 PR 合入 master 时，在 `CHANGELOG.md` 顶部追加：
 

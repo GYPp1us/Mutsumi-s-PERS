@@ -72,6 +72,16 @@ export const en = {
 
   opened: "opened",
   viewedProject: "Viewed project",
+
+  about: "About",
+  version: "Version",
+  githubRepo: "GitHub",
+  checkUpdates: "Check Updates",
+  checkDetail: "Check Detail",
+  updateAvailable: "Update Available",
+  upToDate: "Up to date",
+
+  autostart: "Launch on startup",
 };
 
 export const zh: typeof en = {
@@ -146,6 +156,16 @@ export const zh: typeof en = {
 
   opened: "opened",
   viewedProject: "\u67E5\u770B\u4E86\u9879\u76EE",
+
+  about: "\u5173\u4E8E",
+  version: "\u7248\u672C",
+  githubRepo: "GitHub",
+  checkUpdates: "\u68C0\u67E5\u66F4\u65B0",
+  checkDetail: "\u67E5\u770B\u8BE6\u60C5",
+  updateAvailable: "\u66F4\u65B0\u53EF\u7528",
+  upToDate: "\u5DF2\u662F\u6700\u65B0\u7248\u672C",
+
+  autostart: "\u5F00\u673A\u81EA\u542F",
 };
 
 export type Locale = typeof en;

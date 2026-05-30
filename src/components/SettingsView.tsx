@@ -3,7 +3,10 @@ import { useAppStore } from "../lib/store";
 import { useT } from "../lib/i18n";
 import type { EditorConfig } from "../lib/tauri";
 import * as api from "../lib/tauri";
-import { Plus, X } from "lucide-react";
+import { getVersion } from "@tauri-apps/api/app";
+import { enable as enableAutostart, disable as disableAutostart } from "@tauri-apps/plugin-autostart";
+import { Plus, X, ExternalLink } from "lucide-react";
+import { checkForUpdate } from "../lib/tauri";
 
 const sectionLabel = {
   fontSize: 11,
@@ -37,6 +40,23 @@ export function SettingsView() {
 
   const [editors, setEditors] = useState<EditorConfig[]>([]);
   const [shortcut, setShortcut] = useState("");
+  const [appVersion, setAppVersion] = useState("");
+  const [updateChecking, setUpdateChecking] = useState(false);
+  const [updateFound, setUpdateFound] = useState<{ version: string; body?: string } | null>(null);
+  const [upToDate, setUpToDate] = useState(false);
+  const [autostartEnabled, setAutostartEnabled] = useState(false);
+
+  useEffect(() => {
+    if (settings) setAutostartEnabled(settings.autostart);
+  }, [settings]);
+
+  const setUpdateAvailable = useAppStore((s) => s.setUpdateAvailable);
+  const setUpdateStatus = useAppStore((s) => s.setUpdateStatus);
+  const addToast = useAppStore((s) => s.addToast);
+
+  useEffect(() => {
+    getVersion().then(setAppVersion);
+  }, []);
 
   useEffect(() => {
     if (settings) {
@@ -74,6 +94,77 @@ export function SettingsView() {
         {t.settingsTitle}
       </h2>
 
+      <div style={{ ...cardStyle, display: "flex", flexDirection: "column", gap: 8 }}>
+        <div style={sectionLabel}><span>{t.about}</span></div>
+        <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center" }}>
+          <div style={{ display: "flex", flexDirection: "column", gap: 4 }}>
+            <div style={{ color: "var(--color-text)", fontSize: 13 }}>
+              {t.version}: {appVersion || "..."}
+            </div>
+            <a
+              href="https://github.com/GYPp1us/Mutsumi-s-PERS"
+              target="_blank"
+              rel="noopener noreferrer"
+              style={{
+                color: "var(--color-primary-fg)", fontSize: 11,
+                display: "flex", alignItems: "center", gap: 4, textDecoration: "none",
+              }}
+            >
+              <ExternalLink size={12} strokeWidth={1.5} />
+              {t.githubRepo}
+            </a>
+          </div>
+          <div style={{ display: "flex", flexDirection: "column", alignItems: "flex-end", gap: 4 }}>
+            {updateFound && (
+              <span style={{ color: "var(--color-success)", fontSize: 11 }}>
+                {"\u25CF"} {t.updateAvailable}
+              </span>
+            )}
+            {upToDate && (
+              <span style={{ color: "var(--color-text-muted)", fontSize: 11 }}>
+                {t.upToDate}
+              </span>
+            )}
+            <button
+              onClick={async () => {
+                if (updateFound) {
+                  setUpdateAvailable({ version: updateFound.version, body: updateFound.body });
+                  setUpdateStatus("available");
+                  return;
+                }
+                setUpdateChecking(true);
+                setUpToDate(false);
+                try {
+                  const update = await checkForUpdate();
+                  if (update) {
+                    setUpdateFound({ version: update.version, body: update.body });
+                    setUpToDate(false);
+                  } else {
+                    setUpdateFound(null);
+                    setUpToDate(true);
+                    setTimeout(() => setUpToDate(false), 3000);
+                  }
+                } catch (e) {
+                  addToast(`Update check failed: ${e}`, "error");
+                } finally {
+                  setUpdateChecking(false);
+                }
+              }}
+              disabled={updateChecking}
+              style={{
+                background: updateFound ? "var(--color-primary)" : "var(--color-card)",
+                color: updateFound ? "var(--color-primary-fg)" : "var(--color-text-secondary)",
+                border: "none", padding: "6px 14px", fontSize: 12, cursor: updateChecking ? "default" : "pointer",
+                opacity: updateChecking ? 0.5 : 1,
+                transition: "all 0.15s ease",
+              }}
+            >
+              {updateChecking ? "\u00B7 \u00B7 \u00B7" : updateFound ? t.checkDetail : t.checkUpdates}
+            </button>
+          </div>
+        </div>
+      </div>
+
       <div style={cardStyle}>
         <div style={sectionLabel}><span>{t.appearance}</span></div>
         <div style={{ display: "flex", alignItems: "center", gap: 12 }}>
@@ -89,6 +180,37 @@ export function SettingsView() {
             {theme === "dark" ? t.themeDark : t.themeLight}
           </button>
         </div>
+      </div>
+
+      <div style={{ ...cardStyle, display: "flex", justifyContent: "space-between", alignItems: "center" }}>
+        <span style={{ color: "var(--color-text-secondary)", fontSize: 13 }}>{t.autostart}</span>
+        <button
+          onClick={async () => {
+            const next = !autostartEnabled;
+            try {
+              if (next) await enableAutostart();
+              else await disableAutostart();
+              setAutostartEnabled(next);
+              if (settings) {
+                await api.updateSettings({ ...settings, autostart: next });
+                await loadSettings();
+              }
+            } catch (e) {
+              addToast(`Autostart toggle failed: ${e}`, "error");
+            }
+          }}
+          style={{
+            width: 40, height: 22, borderRadius: 11, border: "none", cursor: "pointer",
+            background: autostartEnabled ? "var(--color-success)" : "var(--color-hover)",
+            position: "relative", transition: "all 0.15s ease",
+          }}
+        >
+          <div style={{
+            width: 18, height: 18, borderRadius: "50%", background: "#fff",
+            position: "absolute", top: 2,
+            left: autostartEnabled ? 20 : 2, transition: "all 0.15s ease",
+          }} />
+        </button>
       </div>
 
       <div style={cardStyle}>

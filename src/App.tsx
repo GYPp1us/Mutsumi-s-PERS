@@ -1,4 +1,5 @@
 import { useEffect } from "react";
+import { listen } from "@tauri-apps/api/event";
 import { useAppStore } from "./lib/store";
 import { LeftNav } from "./components/LeftNav";
 import { ProjectList } from "./components/ProjectList";
@@ -53,6 +54,13 @@ export default function App() {
   useEffect(() => {
     loadProjects();
     loadSettings();
+  }, []);
+
+  useEffect(() => {
+    const unlisten = listen("app-shown", () => {
+      useAppStore.getState().setPinnedState(false);
+    });
+    return () => { unlisten.then((fn) => fn()); };
   }, []);
 
   const setUpdateAvailable = useAppStore((s) => s.setUpdateAvailable);

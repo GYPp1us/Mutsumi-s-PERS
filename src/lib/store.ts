@@ -30,6 +30,7 @@ interface AppStore {
   hideSettings: () => void;
   pinned: boolean;
   togglePin: () => void;
+  setPinnedState: (pinned: boolean) => void;
   addToast: (message: string, type: ToastType) => void;
   removeToast: (id: string) => void;
   updateAvailable: { version: string; body?: string } | null;
@@ -48,7 +49,7 @@ export const useAppStore = create<AppStore>((set, get) => ({
   locale: (localStorage.getItem("mutsumi-locale") as "zh" | "en") || "en",
   showSettings: false,
   toasts: [],
-  pinned: false,
+  pinned: true,
   updateAvailable: null,
   updateProgress: null,
   updateStatus: "idle",
@@ -119,6 +120,11 @@ export const useAppStore = create<AppStore>((set, get) => ({
     const next = !get().pinned;
     set({ pinned: next });
     try { await api.setPinned(next); } catch { /* ignore */ }
+  },
+
+  setPinnedState: (pinned) => {
+    set({ pinned });
+    api.setPinned(pinned).catch(() => {});
   },
 
   setUpdateAvailable: (update) => set({ updateAvailable: update }),
