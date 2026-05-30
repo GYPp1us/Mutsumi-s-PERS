@@ -3,7 +3,7 @@ mod commands;
 
 use std::sync::Mutex;
 use std::sync::atomic::{AtomicBool, Ordering};
-use tauri::Manager;
+use tauri::{Emitter, Manager};
 use tauri::tray::{MouseButton, MouseButtonState, TrayIconBuilder, TrayIconEvent};
 use tauri::menu::{MenuBuilder, MenuItemBuilder};
 use tauri_plugin_global_shortcut::{Code, GlobalShortcutExt, Modifiers, Shortcut};
@@ -37,8 +37,10 @@ fn show_window_on_active_monitor(app: &tauri::AppHandle) {
         }
     }
 
+    app.state::<AppState>().pinned.store(false, Ordering::Relaxed);
     let _ = window.show();
     let _ = window.set_focus();
+    let _ = window.emit("app-shown", ());
 }
 
 fn setup_tray(app: &tauri::AppHandle) -> Result<(), Box<dyn std::error::Error>> {
