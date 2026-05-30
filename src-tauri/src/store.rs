@@ -35,6 +35,7 @@ pub struct Settings {
     pub theme: String,
     pub shortcut: String,
     pub autostart: bool,
+    pub silent_launch: bool,
     pub editors: Vec<EditorConfig>,
 }
 
@@ -69,6 +70,7 @@ impl AppStore {
                 theme: "dark".into(),
                 shortcut: "Alt+Space".into(),
                 autostart: false,
+                silent_launch: false,
                 editors: vec![
                     EditorConfig {
                         id: "vscode".into(),
