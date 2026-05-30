@@ -219,8 +219,8 @@ export function SettingsView() {
         </div>
 
         {autostartEnabled && (
-          <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", paddingLeft: 20 }}>
-            <span style={{ color: "var(--color-text-muted)", fontSize: 12 }}>{t.silentLaunch}</span>
+          <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center" }}>
+            <span style={{ color: "var(--color-text-secondary)", fontSize: 13 }}>{t.silentLaunch}</span>
             <button
               onClick={async () => {
                 const next = !silentLaunchEnabled;
@@ -231,15 +231,15 @@ export function SettingsView() {
                 }
               }}
               style={{
-                width: 36, height: 20, borderRadius: 10, border: "none", cursor: "pointer",
+                width: 40, height: 22, borderRadius: 11, border: "none", cursor: "pointer",
                 background: silentLaunchEnabled ? "var(--color-success)" : "var(--color-hover)",
                 position: "relative", transition: "all 0.15s ease",
               }}
             >
               <div style={{
-                width: 16, height: 16, borderRadius: "50%", background: "#fff",
+                width: 18, height: 18, borderRadius: "50%", background: "#fff",
                 position: "absolute", top: 2,
-                left: silentLaunchEnabled ? 18 : 2, transition: "all 0.15s ease",
+                left: silentLaunchEnabled ? 20 : 2, transition: "all 0.15s ease",
               }} />
             </button>
           </div>
