@@ -1,6 +1,6 @@
 import { useAppStore } from "../lib/store";
 import { useT } from "../lib/i18n";
-import { Diamond, Folders, Pin, PinOff, Settings, Moon, Sun } from "lucide-react";
+import { Diamond, Folders, LayoutTemplate, Pin, PinOff, Settings, Moon, Sun } from "lucide-react";
 import { invoke } from "@tauri-apps/api/core";
 
 const btnBase = {
@@ -39,6 +39,8 @@ export function LeftNav() {
   const toggleTheme = useAppStore((s) => s.toggleTheme);
   const pinned = useAppStore((s) => s.pinned);
   const togglePin = useAppStore((s) => s.togglePin);
+  const navView = useAppStore((s) => s.navView);
+  const setNavView = useAppStore((s) => s.setNavView);
 
   return (
     <nav
@@ -62,11 +64,12 @@ export function LeftNav() {
       </div>
 
       <button
+        onClick={() => setNavView("home")}
         title={t.navProjects}
         style={{
           ...btnBase,
-          opacity: !showSettings ? 1 : 0.35,
-          background: !showSettings ? "var(--color-hover)" : "transparent",
+          opacity: navView === "home" && !showSettings ? 1 : 0.35,
+          background: navView === "home" && !showSettings ? "var(--color-hover)" : "transparent",
         }}
         onMouseEnter={hoverIn}
         onMouseLeave={hoverOut}
@@ -74,6 +77,22 @@ export function LeftNav() {
         onMouseUp={pressOut}
       >
         <Folders size={18} strokeWidth={1.5} />
+      </button>
+
+      <button
+        onClick={() => setNavView("templates")}
+        title={t.navTemplates}
+        style={{
+          ...btnBase,
+          opacity: navView === "templates" && !showSettings ? 1 : 0.35,
+          background: navView === "templates" && !showSettings ? "var(--color-hover)" : "transparent",
+        }}
+        onMouseEnter={hoverIn}
+        onMouseLeave={hoverOut}
+        onMouseDown={pressIn}
+        onMouseUp={pressOut}
+      >
+        <LayoutTemplate size={18} strokeWidth={1.5} />
       </button>
 
       <div style={{ flex: 1 }} />

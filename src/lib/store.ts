@@ -1,5 +1,5 @@
 import { create } from "zustand";
-import type { Project, Settings } from "./tauri";
+import type { Project, Settings, TemplateInfo, TemplateFile } from "./tauri";
 import * as api from "./tauri";
 
 export type ToastType = "success" | "error" | "info";
@@ -10,6 +10,8 @@ export interface Toast {
   type: ToastType;
 }
 
+type NavView = "home" | "templates";
+
 interface AppStore {
   projects: Project[];
   settings: Settings | null;
@@ -17,10 +19,15 @@ interface AppStore {
   theme: "dark" | "light";
   locale: "zh" | "en";
   showSettings: boolean;
+  showCreateProject: boolean;
+  navView: NavView;
+  templates: TemplateInfo[];
   toasts: Toast[];
   loadProjects: () => Promise<void>;
   loadSettings: () => Promise<void>;
+  loadTemplates: () => Promise<void>;
   addProject: (name: string, path: string) => Promise<void>;
+  addProjectQuick: (name: string, path: string, templateName: string | null) => Promise<void>;
   removeProject: (id: string) => Promise<void>;
   toggleStar: (id: string, starred: boolean) => Promise<void>;
   selectProject: (id: string | null) => void;
@@ -28,6 +35,12 @@ interface AppStore {
   setLocale: (locale: "zh" | "en") => void;
   toggleSettings: () => void;
   hideSettings: () => void;
+  openCreateProject: () => void;
+  closeCreateProject: () => void;
+  setNavView: (view: NavView) => void;
+  reorderProjects: (ids: string[]) => void;
+  createTemplate: (name: string, description: string, files: TemplateFile[]) => Promise<void>;
+  removeTemplate: (name: string) => Promise<void>;
   pinned: boolean;
   togglePin: () => void;
   setPinnedState: (pinned: boolean) => void;
@@ -48,6 +61,9 @@ export const useAppStore = create<AppStore>((set, get) => ({
   theme: (localStorage.getItem("mutsumi-theme") as "dark" | "light") || "dark",
   locale: (localStorage.getItem("mutsumi-locale") as "zh" | "en") || "en",
   showSettings: false,
+  showCreateProject: false,
+  navView: "home",
+  templates: [],
   toasts: [],
   pinned: true,
   updateAvailable: null,
@@ -72,11 +88,31 @@ export const useAppStore = create<AppStore>((set, get) => ({
     }
   },
 
+  loadTemplates: async () => {
+    try {
+      const templates = await api.listTemplates();
+      set({ templates });
+    } catch (e) {
+      console.error("Failed to load templates:", e);
+    }
+  },
+
   addProject: async (name, path) => {
     const project = await api.addProject(name, path);
     set({
       projects: [...get().projects, project],
       selectedProjectId: project.id,
+      navView: "home",
+    });
+  },
+
+  addProjectQuick: async (name, path, templateName) => {
+    const project = await api.createProject(name, path, templateName);
+    set({
+      projects: [...get().projects, project],
+      selectedProjectId: project.id,
+      showCreateProject: false,
+      navView: "home",
     });
   },
 
@@ -99,7 +135,9 @@ export const useAppStore = create<AppStore>((set, get) => ({
     });
   },
 
-  selectProject: (id) => set({ selectedProjectId: id }),
+  selectProject: (id) => {
+    set({ selectedProjectId: id, navView: "home" });
+  },
 
   toggleTheme: () => {
     const next = get().theme === "dark" ? "light" : "dark";
@@ -115,6 +153,28 @@ export const useAppStore = create<AppStore>((set, get) => ({
 
   toggleSettings: () => set({ showSettings: !get().showSettings }),
   hideSettings: () => set({ showSettings: false }),
+  openCreateProject: () => set({ showCreateProject: true }),
+  closeCreateProject: () => set({ showCreateProject: false }),
+  setNavView: (view) => set({ navView: view, selectedProjectId: null }),
+
+  reorderProjects: (ids) => {
+    const projects = get().projects;
+    const idSet = new Set(ids);
+    const ordered = ids.map((id) => projects.find((p) => p.id === id)!).filter(Boolean);
+    const remaining = projects.filter((p) => !idSet.has(p.id));
+    set({ projects: [...ordered, ...remaining] });
+    api.reorderProjects(ids).catch((e) => console.error("Failed to persist order:", e));
+  },
+
+  createTemplate: async (name, description, files) => {
+    await api.createTemplate(name, description, files);
+    await get().loadTemplates();
+  },
+
+  removeTemplate: async (name) => {
+    await api.removeTemplate(name);
+    await get().loadTemplates();
+  },
 
   togglePin: async () => {
     const next = !get().pinned;

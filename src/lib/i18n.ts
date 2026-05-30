@@ -68,7 +68,7 @@ export const en = {
   saveSettings: "Save Settings",
   settingsSaved: "Settings saved.",
   language: "Language",
-  editorHelp: "Path: absolute exe path or command name (e.g. \"code\" or \"C:\\\\...\\\\Code.exe\"). Args: comma-separated, \"{path}\" replaced with project folder at launch. Example: VS Code → code / [\"{path}\"]; Terminal → wt.exe / [\"-d\", \"{path}\"]",
+  editorHelp: "Path: absolute exe path or command name (e.g. \"code\" or \"C:\\\\...\\\\Code.exe\"). Args: comma-separated, \"{path}\" replaced with project folder at launch. Example: VS Code \u2192 code / [\"{path}\"]; Terminal \u2192 wt.exe / [\"-d\", \"{path}\"]",
 
   opened: "opened",
   viewedProject: "Viewed project",
@@ -83,6 +83,35 @@ export const en = {
 
   autostart: "Launch on startup",
   silentLaunch: "Start minimized to tray",
+
+  defaultProjectPath: "Default Project Path",
+  defaultProjectPathPlaceholder: "C:\\Projects or leave empty for manual",
+  defaultProjectPathHelp: "When creating a project with only a name, it will be placed under this path. Leave empty to always require a path.",
+
+  newProject: "New Project",
+  createProjectName: "Project Name",
+  createProjectNamePlaceholder: "my-project",
+  createProjectPath: "Project Path (optional)",
+  createProjectPathPlaceholder: "Leave empty to use default path",
+  browse: "Browse",
+  applyTemplate: "Apply Template",
+  noTemplate: "None",
+  createProjectBtn: "Create Project",
+  creating: "Creating...",
+
+  templateName: "Template Name",
+  templateNamePlaceholder: "e.g. react-starter",
+  templateDescription: "Description",
+  templateDescriptionPlaceholder: "Brief description of this template",
+  templateFiles: "Files",
+  fileName: "File name",
+  fileContent: "Content",
+  addFile: "Add File",
+  createTemplate: "Create Template",
+  creatingTemplate: "Creating...",
+  noTemplatesYet: "No custom templates yet. Create one below.",
+  deleteTemplate: "Delete",
+  filesCount: (n: number) => `${n} file${n !== 1 ? "s" : ""}`,
 };
 
 export const zh: typeof en = {
@@ -168,6 +197,35 @@ export const zh: typeof en = {
 
   autostart: "\u5F00\u673A\u81EA\u542F",
   silentLaunch: "\u9759\u9ED8\u542F\u52A8\uFF08\u4E0D\u5F39\u7A97\u53E3\uFF09",
+
+  defaultProjectPath: "\u9ED8\u8BA4\u9879\u76EE\u8DEF\u5F84",
+  defaultProjectPathPlaceholder: "C:\\Projects \u6216\u7559\u7A7A\u4EE5\u624B\u52A8\u9009\u62E9",
+  defaultProjectPathHelp: "\u5F53\u4EC5\u63D0\u4F9B\u9879\u76EE\u540D\u79F0\u521B\u5EFA\u65F6\uFF0C\u9879\u76EE\u5C06\u5B58\u653E\u5728\u6B64\u8DEF\u5F84\u4E0B\u3002\u7559\u7A7A\u5219\u59CB\u7EC8\u8981\u6C42\u63D0\u4F9B\u8DEF\u5F84\u3002",
+
+  newProject: "\u65B0\u5EFA\u9879\u76EE",
+  createProjectName: "\u9879\u76EE\u540D\u79F0",
+  createProjectNamePlaceholder: "\u4F8B\u5982 my-project",
+  createProjectPath: "\u9879\u76EE\u8DEF\u5F84 (\u53EF\u9009)",
+  createProjectPathPlaceholder: "\u7559\u7A7A\u5219\u4F7F\u7528\u9ED8\u8BA4\u8DEF\u5F84",
+  browse: "\u6D4F\u89C8",
+  applyTemplate: "\u5E94\u7528\u6A21\u677F",
+  noTemplate: "\u65E0",
+  createProjectBtn: "\u521B\u5EFA\u9879\u76EE",
+  creating: "\u521B\u5EFA\u4E2D...",
+
+  templateName: "\u6A21\u677F\u540D\u79F0",
+  templateNamePlaceholder: "\u4F8B\u5982 react-starter",
+  templateDescription: "\u63CF\u8FF0",
+  templateDescriptionPlaceholder: "\u6A21\u677F\u7684\u7B80\u77ED\u63CF\u8FF0",
+  templateFiles: "\u6587\u4EF6",
+  fileName: "\u6587\u4EF6\u540D",
+  fileContent: "\u5185\u5BB9",
+  addFile: "\u6DFB\u52A0\u6587\u4EF6",
+  createTemplate: "\u521B\u5EFA\u6A21\u677F",
+  creatingTemplate: "\u521B\u5EFA\u4E2D...",
+  noTemplatesYet: "\u8FD8\u6CA1\u6709\u81EA\u5B9A\u4E49\u6A21\u677F\uFF0C\u5728\u4E0B\u65B9\u521B\u5EFA\u3002",
+  deleteTemplate: "\u5220\u9664",
+  filesCount: (n: number) => `${n} \u4E2A\u6587\u4EF6`,
 };
 
 export type Locale = typeof en;

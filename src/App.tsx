@@ -7,6 +7,7 @@ import { RightPanel } from "./components/RightPanel";
 import { SettingsView } from "./components/SettingsView";
 import { UpdateModal } from "./components/UpdateModal";
 import { ToastContainer } from "./components/Toast";
+import { CreateProjectDialog } from "./components/CreateProjectDialog";
 import { LocaleCtx, getLocale } from "./lib/i18n";
 import { checkForUpdate } from "./lib/tauri";
 import { invoke } from "@tauri-apps/api/core";
@@ -111,6 +112,7 @@ export default function App() {
         <RightPanel />
       </div>
       <SettingsModal />
+      <CreateProjectDialog />
       <UpdateModal />
       <ToastContainer />
     </LocaleCtx.Provider>

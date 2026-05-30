@@ -30,7 +30,19 @@ export interface Settings {
   shortcut: string;
   autostart: boolean;
   silent_launch: boolean;
+  default_project_path: string;
   editors: EditorConfig[];
+}
+
+export interface TemplateInfo {
+  name: string;
+  description: string;
+  file_count: number;
+}
+
+export interface TemplateFile {
+  name: string;
+  content: string;
 }
 
 export const listProjects = () => invoke<Project[]>("list_projects");
@@ -71,6 +83,29 @@ export const injectTemplate = (
     variables,
     conflict,
   });
+
+export const reorderProjects = (ids: string[]) =>
+  invoke<void>("reorder_projects", { ids });
+
+export const createProject = (
+  name: string,
+  path: string,
+  templateName: string | null
+) =>
+  invoke<Project>("create_project", { name, path, templateName });
+
+export const listTemplates = () =>
+  invoke<TemplateInfo[]>("list_templates");
+
+export const createTemplate = (
+  name: string,
+  description: string,
+  files: TemplateFile[]
+) =>
+  invoke<void>("create_template", { name, description, files });
+
+export const removeTemplate = (name: string) =>
+  invoke<void>("remove_template", { name });
 
 // --- Updater ---
 
