@@ -82,6 +82,7 @@ export const en = {
   upToDate: "Up to date",
 
   autostart: "Launch on startup",
+  silentLaunch: "Start minimized to tray",
 };
 
 export const zh: typeof en = {
@@ -166,6 +167,7 @@ export const zh: typeof en = {
   upToDate: "\u5DF2\u662F\u6700\u65B0\u7248\u672C",
 
   autostart: "\u5F00\u673A\u81EA\u542F",
+  silentLaunch: "\u9759\u9ED8\u542F\u52A8\uFF08\u4E0D\u5F39\u7A97\u53E3\uFF09",
 };
 
 export type Locale = typeof en;
