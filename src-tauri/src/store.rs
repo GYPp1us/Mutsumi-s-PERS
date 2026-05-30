@@ -36,7 +36,16 @@ pub struct Settings {
     pub shortcut: String,
     pub autostart: bool,
     pub silent_launch: bool,
+    #[serde(default)]
+    pub default_project_path: String,
     pub editors: Vec<EditorConfig>,
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct TemplateMeta {
+    pub name: String,
+    pub description: String,
+    pub version: String,
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize, Default)]
@@ -49,6 +58,10 @@ impl AppStore {
     fn data_dir() -> PathBuf {
         let base = dirs::config_dir().unwrap_or_else(|| PathBuf::from("."));
         base.join("mutsumi-s-pres")
+    }
+
+    pub fn templates_dir() -> PathBuf {
+        Self::data_dir().join("templates")
     }
 
     fn data_file() -> PathBuf {
@@ -71,6 +84,7 @@ impl AppStore {
                 shortcut: "Alt+Space".into(),
                 autostart: false,
                 silent_launch: false,
+                default_project_path: String::new(),
                 editors: vec![
                     EditorConfig {
                         id: "vscode".into(),
