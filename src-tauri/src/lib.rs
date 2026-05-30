@@ -158,8 +158,15 @@ pub fn run() {
                 )?;
             }
 
-            show_window_on_active_monitor(app.handle());
-            app.state::<AppState>().pinned.store(true, std::sync::atomic::Ordering::Relaxed);
+            {
+                let silent = app.state::<AppState>().store.lock().ok()
+                    .map(|s| s.settings.silent_launch)
+                    .unwrap_or(false);
+                if !silent {
+                    show_window_on_active_monitor(app.handle());
+                    app.state::<AppState>().pinned.store(true, std::sync::atomic::Ordering::Relaxed);
+                }
+            }
 
             Ok(())
         })
