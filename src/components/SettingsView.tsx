@@ -4,6 +4,7 @@ import { useT } from "../lib/i18n";
 import type { EditorConfig } from "../lib/tauri";
 import * as api from "../lib/tauri";
 import { getVersion } from "@tauri-apps/api/app";
+import { enable as enableAutostart, disable as disableAutostart } from "@tauri-apps/plugin-autostart";
 import { Plus, X, ExternalLink } from "lucide-react";
 import { checkForUpdate } from "../lib/tauri";
 
@@ -43,6 +44,11 @@ export function SettingsView() {
   const [updateChecking, setUpdateChecking] = useState(false);
   const [updateFound, setUpdateFound] = useState<{ version: string; body?: string } | null>(null);
   const [upToDate, setUpToDate] = useState(false);
+  const [autostartEnabled, setAutostartEnabled] = useState(false);
+
+  useEffect(() => {
+    if (settings) setAutostartEnabled(settings.autostart);
+  }, [settings]);
 
   const setUpdateAvailable = useAppStore((s) => s.setUpdateAvailable);
   const setUpdateStatus = useAppStore((s) => s.setUpdateStatus);
@@ -174,6 +180,37 @@ export function SettingsView() {
             {theme === "dark" ? t.themeDark : t.themeLight}
           </button>
         </div>
+      </div>
+
+      <div style={{ ...cardStyle, display: "flex", justifyContent: "space-between", alignItems: "center" }}>
+        <span style={{ color: "var(--color-text-secondary)", fontSize: 13 }}>{t.autostart}</span>
+        <button
+          onClick={async () => {
+            const next = !autostartEnabled;
+            try {
+              if (next) await enableAutostart();
+              else await disableAutostart();
+              setAutostartEnabled(next);
+              if (settings) {
+                await api.updateSettings({ ...settings, autostart: next });
+                await loadSettings();
+              }
+            } catch (e) {
+              addToast(`Autostart toggle failed: ${e}`, "error");
+            }
+          }}
+          style={{
+            width: 40, height: 22, borderRadius: 11, border: "none", cursor: "pointer",
+            background: autostartEnabled ? "var(--color-success)" : "var(--color-hover)",
+            position: "relative", transition: "all 0.15s ease",
+          }}
+        >
+          <div style={{
+            width: 18, height: 18, borderRadius: "50%", background: "#fff",
+            position: "absolute", top: 2,
+            left: autostartEnabled ? 20 : 2, transition: "all 0.15s ease",
+          }} />
+        </button>
       </div>
 
       <div style={cardStyle}>

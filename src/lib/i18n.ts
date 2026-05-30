@@ -80,6 +80,8 @@ export const en = {
   checkDetail: "Check Detail",
   updateAvailable: "Update Available",
   upToDate: "Up to date",
+
+  autostart: "Launch on startup",
 };
 
 export const zh: typeof en = {
@@ -162,6 +164,8 @@ export const zh: typeof en = {
   checkDetail: "\u67E5\u770B\u8BE6\u60C5",
   updateAvailable: "\u66F4\u65B0\u53EF\u7528",
   upToDate: "\u5DF2\u662F\u6700\u65B0\u7248\u672C",
+
+  autostart: "\u5F00\u673A\u81EA\u542F",
 };
 
 export type Locale = typeof en;
