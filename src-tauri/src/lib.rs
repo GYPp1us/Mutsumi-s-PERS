@@ -37,8 +37,6 @@ fn show_window_on_active_monitor(app: &tauri::AppHandle) {
         }
     }
 
-    app.state::<AppState>().pinned.store(false, Ordering::Relaxed);
-
     let _ = window.show();
     let _ = window.set_focus();
 }
