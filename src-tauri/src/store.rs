@@ -13,6 +13,8 @@ pub struct Project {
     pub last_opened: String,
     pub activity_log: Vec<Activity>,
     pub sync_id: Option<String>,
+    #[serde(default)]
+    pub group_id: Option<String>,
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
@@ -48,10 +50,20 @@ pub struct TemplateMeta {
     pub version: String,
 }
 
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct GroupMeta {
+    pub id: String,
+    pub name: String,
+    pub color: String,
+    pub collapsed: bool,
+}
+
 #[derive(Debug, Clone, Serialize, Deserialize, Default)]
 pub struct AppStore {
     pub projects: Vec<Project>,
     pub settings: Settings,
+    #[serde(default)]
+    pub groups: Vec<GroupMeta>,
 }
 
 impl AppStore {
@@ -100,6 +112,7 @@ impl AppStore {
                     },
                 ],
             },
+            groups: vec![],
         }
     }
 

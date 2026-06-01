@@ -22,6 +22,7 @@ pub fn add_project(state: State<AppState>, name: String, path: String) -> Result
         last_opened: chrono::Utc::now().to_rfc3339(),
         activity_log: vec![],
         sync_id: None,
+        group_id: None,
     };
     store.projects.push(project.clone());
     store.save()?;
@@ -97,6 +98,7 @@ pub fn create_project(
         last_opened: chrono::Utc::now().to_rfc3339(),
         activity_log: vec![],
         sync_id: None,
+        group_id: None,
     };
     store.projects.push(project.clone());
     store.save()?;
