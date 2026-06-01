@@ -112,6 +112,14 @@ export const en = {
   noTemplatesYet: "No custom templates yet. Create one below.",
   deleteTemplate: "Delete",
   filesCount: (n: number) => `${n} file${n !== 1 ? "s" : ""}`,
+
+  groupDefaultName: (n: number) => `Group ${n}`,
+  groupEmpty: "(empty)",
+  groupDragToJoin: "Drop to group",
+  groups: "Groups",
+  newGroup: "New Group",
+  deleteGroup: "Delete group",
+  renameGroup: "Rename group",
 };
 
 export const zh: typeof en = {
@@ -226,6 +234,14 @@ export const zh: typeof en = {
   noTemplatesYet: "\u8FD8\u6CA1\u6709\u81EA\u5B9A\u4E49\u6A21\u677F\uFF0C\u5728\u4E0B\u65B9\u521B\u5EFA\u3002",
   deleteTemplate: "\u5220\u9664",
   filesCount: (n: number) => `${n} \u4E2A\u6587\u4EF6`,
+
+  groupDefaultName: (n: number) => `\u7EC4 ${n}`,
+  groupEmpty: "\uFF08\u7A7A\uFF09",
+  groupDragToJoin: "\u62D6\u62FD\u4EE5\u7F16\u7EC4",
+  groups: "\u7F16\u7EC4",
+  newGroup: "\u65B0\u5EFA\u7EC4",
+  deleteGroup: "\u5220\u9664\u7EC4",
+  renameGroup: "\u91CD\u547D\u540D\u7EC4",
 };
 
 export type Locale = typeof en;

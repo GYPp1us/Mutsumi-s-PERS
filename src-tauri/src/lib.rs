@@ -192,6 +192,7 @@ pub fn run() {
             commands::group::rename_group,
             commands::group::toggle_group,
             commands::group::set_project_group,
+            commands::group::list_groups,
             commands::git::git_status,
             commands::git::git_pull,
             commands::git::git_push,

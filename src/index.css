@@ -100,3 +100,73 @@ button {
   animation: btn-pulse 0.8s ease-in-out infinite;
   pointer-events: none;
 }
+
+.floating-card {
+  position: fixed;
+  z-index: 1000;
+  pointer-events: none;
+  box-shadow: 0 4px 16px rgba(0,0,0,0.4);
+  opacity: 0.92;
+}
+
+.drag-item {
+  transition: opacity 0.15s ease;
+}
+
+.drag-item-dragging {
+  opacity: 0;
+}
+
+.onto-highlight {
+  position: absolute;
+  inset: 0;
+  pointer-events: none;
+}
+
+.group-header {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  padding: 6px 12px;
+  margin: 1px 4px;
+  cursor: pointer;
+  user-select: none;
+  position: relative;
+}
+
+.group-header-rename-input {
+  background: var(--color-hover);
+  color: var(--color-text);
+  border: none;
+  padding: 2px 6px;
+  font-size: 13px;
+  font-weight: 600;
+  outline: none;
+  font-family: inherit;
+  width: 120px;
+}
+
+.group-item {
+  padding: 7px 14px;
+  margin: 1px 4px;
+  display: flex;
+  align-items: center;
+  gap: 8;
+  cursor: pointer;
+  position: relative;
+  user-select: none;
+}
+
+.group-bar {
+  position: absolute;
+  left: 0;
+  top: 0;
+  bottom: 0;
+  width: 3px;
+  transition: opacity 0.15s ease;
+}
+
+@keyframes drop-line-in {
+  from { opacity: 0; transform: scaleX(0.8); }
+  to { opacity: 1; transform: scaleX(1); }
+}

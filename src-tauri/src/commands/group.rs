@@ -3,6 +3,12 @@ use crate::store::GroupMeta;
 use crate::AppState;
 
 #[tauri::command]
+pub fn list_groups(state: State<AppState>) -> Result<Vec<GroupMeta>, String> {
+    let store = state.store.lock().map_err(|e| e.to_string())?;
+    Ok(store.groups.clone())
+}
+
+#[tauri::command]
 pub fn create_group(
     state: State<AppState>,
     name: String,

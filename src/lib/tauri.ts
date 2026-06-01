@@ -10,6 +10,7 @@ export interface Project {
   last_opened: string;
   activity_log: Activity[];
   sync_id: string | null;
+  group_id: string | null;
 }
 
 export interface Activity {
@@ -43,6 +44,13 @@ export interface TemplateInfo {
 export interface TemplateFile {
   name: string;
   content: string;
+}
+
+export interface GroupInfo {
+  id: string;
+  name: string;
+  color: string;
+  collapsed: boolean;
 }
 
 export const listProjects = () => invoke<Project[]>("list_projects");
@@ -106,6 +114,27 @@ export const createTemplate = (
 
 export const removeTemplate = (name: string) =>
   invoke<void>("remove_template", { name });
+
+export const createGroup = (name: string, color: string) =>
+  invoke<GroupInfo>("create_group", { name, color });
+
+export const listGroups = () =>
+  invoke<GroupInfo[]>("list_groups");
+
+export const deleteGroup = (id: string) =>
+  invoke<void>("delete_group", { id });
+
+export const renameGroup = (id: string, name: string) =>
+  invoke<void>("rename_group", { id, name });
+
+export const toggleGroup = (id: string, collapsed: boolean) =>
+  invoke<void>("toggle_group", { id, collapsed });
+
+export const setProjectGroup = (projectId: string, groupId: string | null) =>
+  invoke<void>("set_project_group", { projectId, groupId });
+
+export const reorderAll = (projectIds: string[]) =>
+  invoke<void>("reorder_projects", { ids: projectIds });
 
 // --- Updater ---
 
