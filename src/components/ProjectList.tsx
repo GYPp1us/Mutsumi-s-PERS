@@ -47,10 +47,33 @@ export function ProjectList() {
   const pressTarget = useRef<{ id: string; type: "project" | "group-header" } | null>(null);
   const frozenTree = useRef<string[]>([]);
 
+  const justDragged = useRef(false);
+  const latestTargetRef = useRef<{ targetId: string; zone: Zone; ontoGroupId: string | null } | null>(null);
+  const dragListLeftRef = useRef(72);
+
   useEffect(() => {
     loadProjects();
     loadGroups();
     loadSettings();
+
+    const handleGlobalMouseUp = () => {
+      if (longPressTimer.current) {
+        clearTimeout(longPressTimer.current);
+        longPressTimer.current = null;
+      }
+      pressTarget.current = null;
+    };
+    window.addEventListener("mouseup", handleGlobalMouseUp);
+    return () => {
+      window.removeEventListener("mouseup", handleGlobalMouseUp);
+      if (longPressTimer.current) clearTimeout(longPressTimer.current);
+    };
+  }, []);
+
+  useEffect(() => {
+    if (scrollRef.current) {
+      dragListLeftRef.current = scrollRef.current.getBoundingClientRect().left + 8;
+    }
   }, []);
 
   const tree = buildTree(projects, groups);
@@ -128,6 +151,7 @@ export function ProjectList() {
     const newState: Partial<DragState> = { mouseY: e.clientY };
 
     if (target) {
+      latestTargetRef.current = { targetId: target.targetId, zone: target.zone, ontoGroupId: null };
       newState.targetId = target.targetId;
       newState.targetZone = target.zone;
 
@@ -135,13 +159,16 @@ export function ProjectList() {
         const targetItem = tree.find((t) => t.id === target.targetId);
         if (targetItem?.type === "project" && targetItem.project) {
           newState.ontoGroupId = targetItem.project.group_id || null;
+          latestTargetRef.current.ontoGroupId = newState.ontoGroupId;
         } else if (targetItem?.type === "group-header") {
           newState.ontoGroupId = targetItem.groupId || null;
+          latestTargetRef.current.ontoGroupId = newState.ontoGroupId;
         }
       } else {
         newState.ontoGroupId = null;
       }
     } else {
+      latestTargetRef.current = null;
       newState.targetId = null;
       newState.targetZone = null;
       newState.ontoGroupId = null;
@@ -160,12 +187,15 @@ export function ProjectList() {
     const state = dragRef.current;
     if (!state.active) return;
 
-    const { sourceId, sourceType, targetId, targetZone } = state;
-    if (!targetId || !targetZone) {
-      setDrag({ active: false, sourceId: "", sourceType: "project", mouseY: 0, targetId: null, targetZone: null, ontoGroupId: null });
+    justDragged.current = true;
+    const target = latestTargetRef.current;
+    if (!target || !target.targetId || !target.zone) {
+      resetDrag();
       return;
     }
 
+    const { sourceId, sourceType } = state;
+    const { targetId, zone: targetZone } = target;
     const projectIds = projects.map((p) => p.id);
 
     if (sourceType === "group-header" && (targetZone === "above" || targetZone === "below")) {
@@ -173,11 +203,23 @@ export function ProjectList() {
       if (!sourceGroup) { resetDrag(); return; }
       const groupProjectIds = projects.filter((p) => p.group_id === sourceId).map((p) => p.id);
       const otherIds = projectIds.filter((id) => !groupProjectIds.includes(id));
-      const targetIdx = otherIds.indexOf(targetId);
-      const insertIdx = targetZone === "below" ? targetIdx + 1 : targetIdx;
+
+      const targetAsGroup = groups.find((g) => g.id === targetId);
+      let tIdx: number;
+      if (targetAsGroup) {
+        const targetGroupProjectIds = projects.filter((p) => p.group_id === targetId).map((p) => p.id);
+        tIdx = otherIds.indexOf(targetGroupProjectIds[targetZone === "below" ? targetGroupProjectIds.length - 1 : 0]);
+        if (tIdx === -1) tIdx = targetZone === "below" ? otherIds.length - 1 : 0;
+      } else {
+        tIdx = otherIds.indexOf(targetId);
+        if (tIdx === -1) { resetDrag(); return; }
+      }
+
+      const insertIdx = targetZone === "below" ? tIdx + 1 : tIdx;
       const newIds = [...otherIds];
       newIds.splice(insertIdx, 0, ...groupProjectIds);
       reorderAll(newIds);
+      resetDrag();
     } else if (sourceType === "project" && targetZone === "onto") {
       const targetItem = tree.find((t) => t.id === targetId);
       let targetGroupId: string | null = null;
@@ -200,13 +242,17 @@ export function ProjectList() {
             newIds.splice(ti, 0, sourceId);
             reorderAll(newIds);
           }
-        });
+          resetDrag();
+        }).catch(() => { resetDrag(); });
       } else {
         const color = nextGroupColor();
-        createGroup(t.groupDefaultName(groups.length + 1), color).then((newGroupId) => {
-          moveToGroup(sourceId, newGroupId).catch(() => {});
-          moveToGroup(targetId, newGroupId).catch(() => {});
-        });
+        createGroup(t.groupDefaultName(groups.length + 1), color)
+          .then((newGroupId) => Promise.all([
+            moveToGroup(sourceId, newGroupId),
+            moveToGroup(targetId, newGroupId),
+          ]))
+          .then(() => resetDrag())
+          .catch(() => { resetDrag(); });
       }
     } else if (sourceType === "project" && (targetZone === "above" || targetZone === "below")) {
       const sourceGroupId = projects.find((p) => p.id === sourceId)?.group_id;
@@ -220,12 +266,12 @@ export function ProjectList() {
         const si = otherIds.indexOf(sourceId);
         if (si === -1) { resetDrag(); return; }
         otherIds.splice(si, 1);
-        const gi = otherIds.indexOf(targetId);
+        const gi = targetZone === "below" ? otherIds.indexOf(groupProjectIds[groupProjectIds.length - 1]) : otherIds.indexOf(groupProjectIds[0]);
         const insertIdx = targetZone === "below" ? gi + 1 : gi;
         otherIds.splice(insertIdx, 0, sourceId);
         reorderAll(otherIds);
         if (sourceGroupId) {
-          moveToGroup(sourceId, null);
+          moveToGroup(sourceId, null).catch(() => {});
         }
       } else {
         const newIds = [...projectIds];
@@ -238,12 +284,13 @@ export function ProjectList() {
         newIds.splice(insertIdx, 0, sourceId);
         reorderAll(newIds);
         if (sourceGroupId) {
-          moveToGroup(sourceId, null);
+          moveToGroup(sourceId, null).catch(() => {});
         }
       }
+      resetDrag();
+    } else {
+      resetDrag();
     }
-
-    resetDrag();
   }, [projects, groups, tree, reorderAll, createGroup, moveToGroup, t]);
 
   function resetDrag() {
@@ -282,7 +329,7 @@ export function ProjectList() {
     setEditingGroupId(null);
   };
 
-  const floatingCardLeft = 72;
+  const floatingCardLeft = dragListLeftRef.current;
 
   return (
     <aside
@@ -330,7 +377,7 @@ export function ProjectList() {
                 <div
                   data-drag-target={item.id}
                   onMouseDown={(e) => onMouseDown(e, item.id, "group-header")}
-                  onClick={() => toggleGroup(item.groupId!, !item.groupCollapsed)}
+                  onClick={(e) => { e.stopPropagation(); if (justDragged.current) { justDragged.current = false; return; } toggleGroup(item.groupId!, !item.groupCollapsed); }}
                   onDoubleClick={(e) => { e.stopPropagation(); handleGroupRename(item.groupId!); }}
                   className="group-header"
                   style={{
@@ -368,7 +415,7 @@ export function ProjectList() {
                     <div key={p.id}
                       data-drag-target={p.id}
                       onMouseDown={(e) => onMouseDown(e, p.id, "project")}
-                      onClick={() => selectProject(p.id)}
+                      onClick={() => { if (justDragged.current) { justDragged.current = false; return; } selectProject(p.id); }}
                       className="group-item"
                       style={{
                         opacity: isDragging ? 0 : 1,

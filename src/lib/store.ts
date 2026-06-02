@@ -88,64 +88,55 @@ export function nextGroupColor(): string {
 export function buildTree(projects: Project[], groups: GroupInfo[]): TreeItem[] {
   const result: TreeItem[] = [];
   const groupMap = new Map(groups.map((g) => [g.id, g]));
-  let lastGroupId: string | null = null;
-  let groupStartIdx = -1;
+  let currentGroupId: string | null = null;
+  let pendingGroupProjects: Project[] = [];
 
-  for (let i = 0; i < projects.length; i++) {
-    const p = projects[i];
-    const gid = p.group_id;
-
-    if (gid && gid === lastGroupId) {
-      continue;
+  function flushGroup() {
+    if (currentGroupId === null || pendingGroupProjects.length === 0) return;
+    const g = groupMap.get(currentGroupId);
+    if (!g) {
+      for (const p of pendingGroupProjects) {
+        result.push({ type: "project", id: p.id, project: p });
+      }
+    } else {
+      result.push({
+        type: "group-header",
+        id: g.id,
+        groupId: g.id,
+        groupName: g.name,
+        groupColor: g.color,
+        groupCollapsed: g.collapsed,
+        groupItemCount: pendingGroupProjects.length,
+      });
+      for (const p of pendingGroupProjects) {
+        result.push({
+          type: "project",
+          id: p.id,
+          project: p,
+          isGrouped: true,
+          groupColor: g.color,
+        });
+      }
     }
+    currentGroupId = null;
+    pendingGroupProjects = [];
+  }
 
-    if (gid && gid !== lastGroupId) {
+  for (const p of projects) {
+    const gid = p.group_id || null;
+
+    if (gid !== currentGroupId) {
       flushGroup();
+      currentGroupId = gid;
     }
 
     if (gid) {
-      lastGroupId = gid;
-      groupStartIdx = result.length;
+      pendingGroupProjects.push(p);
     } else {
-      lastGroupId = null;
       result.push({ type: "project", id: p.id, project: p });
     }
   }
   flushGroup();
-
-  function flushGroup() {
-    if (lastGroupId === null || groupStartIdx === -1) return;
-    const g = groupMap.get(lastGroupId);
-    if (!g) {
-      lastGroupId = null;
-      groupStartIdx = -1;
-      return;
-    }
-    const groupProjects = projects.filter((p) => p.group_id === lastGroupId);
-    result.splice(groupStartIdx, 0, {
-      type: "group-header",
-      id: g.id,
-      groupId: g.id,
-      groupName: g.name,
-      groupColor: g.color,
-      groupCollapsed: g.collapsed,
-      groupItemCount: groupProjects.length,
-    });
-    const insertedIdx = groupStartIdx + 1;
-    let inserted = 0;
-    for (const p of groupProjects) {
-      result.splice(insertedIdx + inserted, 0, {
-        type: "project",
-        id: p.id,
-        project: p,
-        isGrouped: true,
-        groupColor: g.color,
-      });
-      inserted++;
-    }
-    lastGroupId = null;
-    groupStartIdx = -1;
-  }
 
   return result;
 }

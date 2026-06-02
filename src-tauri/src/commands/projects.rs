@@ -65,6 +65,7 @@ pub fn update_project(
 #[tauri::command]
 pub fn reorder_projects(state: State<AppState>, ids: Vec<String>) -> Result<(), String> {
     let mut store = state.store.lock().map_err(|e| e.to_string())?;
+    let prev = store.projects.clone();
     let mut ordered = Vec::with_capacity(store.projects.len());
     for id in &ids {
         if let Some(pos) = store.projects.iter().position(|p| &p.id == id) {
@@ -73,7 +74,11 @@ pub fn reorder_projects(state: State<AppState>, ids: Vec<String>) -> Result<(), 
     }
     ordered.extend(store.projects.drain(..));
     store.projects = ordered;
-    store.save()
+    if let Err(e) = store.save() {
+        store.projects = prev;
+        return Err(e);
+    }
+    Ok(())
 }
 
 #[tauri::command]
