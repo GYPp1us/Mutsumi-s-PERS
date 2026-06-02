@@ -1,5 +1,6 @@
-import { useState, useRef, useCallback, useEffect } from "react";
+import { useState, useRef, useCallback, useEffect, useMemo } from "react";
 import { useAppStore, buildTree, nextGroupColor } from "../lib/store";
+import type { Project } from "../lib/tauri";
 import { useT } from "../lib/i18n";
 import { Home, Folder, Star, Plus, ChevronDown, ChevronRight } from "lucide-react";
 
@@ -30,7 +31,7 @@ export function ProjectList() {
   const createGroup = useAppStore((s) => s.createGroup);
   const renameGroup = useAppStore((s) => s.renameGroup);
   const toggleGroup = useAppStore((s) => s.toggleGroup);
-  const moveToGroup = useAppStore((s) => s.moveToGroup);
+  const batchMoveAndReorder = useAppStore((s) => s.batchMoveAndReorder);
   const loadProjects = useAppStore((s) => s.loadProjects);
   const loadGroups = useAppStore((s) => s.loadGroups);
   const loadSettings = useAppStore((s) => s.loadSettings);
@@ -49,6 +50,20 @@ export function ProjectList() {
   const justDragged = useRef(false);
   const latestTargetRef = useRef<{ targetId: string; zone: Zone; ontoGroupId: string | null } | null>(null);
   const dragListLeftRef = useRef(72);
+  const swapOrderRef = useRef<string[]>([]);
+  const lastSwapTargetRef = useRef<string | null>(null);
+  const [swapOrderVersion, setSwapOrderVersion] = useState(0);
+
+  const swapOrderMap = useMemo(() => {
+    const m = new Map<string, Project>();
+    for (const p of projects) m.set(p.id, p);
+    return m;
+  }, [projects]);
+
+  const renderProjects = useMemo(() => {
+    if (!drag.active || swapOrderRef.current.length === 0) return projects;
+    return swapOrderRef.current.map((id) => swapOrderMap.get(id)!).filter(Boolean);
+  }, [projects, drag.active, swapOrderVersion]);
 
   useEffect(() => {
     loadProjects();
@@ -75,7 +90,7 @@ export function ProjectList() {
     }
   }, []);
 
-  const tree = buildTree(projects, groups);
+  const tree = buildTree(renderProjects, groups);
   const visibleTree = (drag.active || filter.length === 0)
     ? tree
     : tree.filter((item) => {
@@ -132,6 +147,9 @@ export function ProjectList() {
 
     longPressTimer.current = setTimeout(() => {
       pressTarget.current = null;
+      swapOrderRef.current = projects.map((p) => p.id);
+      lastSwapTargetRef.current = null;
+      setSwapOrderVersion((v) => v + 1);
       setDrag({
         active: true,
         sourceId: id,
@@ -142,6 +160,18 @@ export function ProjectList() {
         ontoGroupId: null,
       });
     }, 300);
+  };
+
+  const swapItemsInOrder = (sourceId: string, targetId: string) => {
+    const order = swapOrderRef.current;
+    const si = order.indexOf(sourceId);
+    const ti = order.indexOf(targetId);
+    if (si === -1 || ti === -1 || si === ti) return false;
+    order.splice(si, 1);
+    const newTi = order.indexOf(targetId);
+    order.splice(newTi, 0, sourceId);
+    setSwapOrderVersion((v) => v + 1);
+    return true;
   };
 
   const onMouseMove = useCallback((e: MouseEvent) => {
@@ -167,7 +197,11 @@ export function ProjectList() {
       newState.targetId = target.targetId;
       newState.targetZone = target.zone;
 
+      const prevZone = lastSwapTargetRef.current;
+      const isZoneSwitch = prevZone !== `${target.targetId}:${target.zone}`;
+
       if (target.zone === "onto" && state.sourceType === "project") {
+        lastSwapTargetRef.current = `${target.targetId}:onto`;
         const targetItem = tree.find((t) => t.id === target.targetId);
         if (targetItem?.type === "project" && targetItem.project) {
           newState.ontoGroupId = targetItem.project.group_id || null;
@@ -176,8 +210,20 @@ export function ProjectList() {
           newState.ontoGroupId = targetItem.groupId || null;
           latestTargetRef.current.ontoGroupId = newState.ontoGroupId;
         }
-      } else {
-        newState.ontoGroupId = null;
+      } else if (state.sourceType === "project" && (target.zone === "above" || target.zone === "below") && isZoneSwitch) {
+        lastSwapTargetRef.current = `${target.targetId}:${target.zone}`;
+        swapItemsInOrder(state.sourceId, target.targetId);
+      } else if (state.sourceType === "group-header" && (target.zone === "above" || target.zone === "below") && isZoneSwitch) {
+        lastSwapTargetRef.current = `${target.targetId}:${target.zone}`;
+        const groupProjectIds = projects.filter((p) => p.group_id === state.sourceId).map((p) => p.id);
+        const otherIds = swapOrderRef.current.filter((id) => !groupProjectIds.includes(id));
+        const tIdx = otherIds.indexOf(target.targetId);
+        if (tIdx !== -1) {
+          swapOrderRef.current = target.zone === "below"
+            ? [...otherIds.slice(0, tIdx + 1), ...groupProjectIds, ...otherIds.slice(tIdx + 1)]
+            : [...otherIds.slice(0, tIdx), ...groupProjectIds, ...otherIds.slice(tIdx)];
+          setSwapOrderVersion((v) => v + 1);
+        }
       }
     } else {
       latestTargetRef.current = null;
@@ -187,7 +233,7 @@ export function ProjectList() {
     }
 
     setDrag({ ...state, ...newState } as DragState);
-  }, [tree, findTargetByY]);
+  }, [tree, findTargetByY, projects]);
 
   const onMouseUp = useCallback(() => {
     if (longPressTimer.current) {
@@ -209,28 +255,10 @@ export function ProjectList() {
     const { sourceId, sourceType } = state;
     const { targetId, zone: targetZone } = target;
     const projectIds = projects.map((p) => p.id);
+    const finalOrder = swapOrderRef.current.length > 0 ? swapOrderRef.current : projectIds;
 
     if (sourceType === "group-header" && (targetZone === "above" || targetZone === "below")) {
-      const sourceGroup = groups.find((g) => g.id === sourceId);
-      if (!sourceGroup) { resetDrag(); return; }
-      const groupProjectIds = projects.filter((p) => p.group_id === sourceId).map((p) => p.id);
-      const otherIds = projectIds.filter((id) => !groupProjectIds.includes(id));
-
-      const targetAsGroup = groups.find((g) => g.id === targetId);
-      let tIdx: number;
-      if (targetAsGroup) {
-        const targetGroupProjectIds = projects.filter((p) => p.group_id === targetId).map((p) => p.id);
-        tIdx = otherIds.indexOf(targetGroupProjectIds[targetZone === "below" ? targetGroupProjectIds.length - 1 : 0]);
-        if (tIdx === -1) tIdx = targetZone === "below" ? otherIds.length - 1 : 0;
-      } else {
-        tIdx = otherIds.indexOf(targetId);
-        if (tIdx === -1) { resetDrag(); return; }
-      }
-
-      const insertIdx = targetZone === "below" ? tIdx + 1 : tIdx;
-      const newIds = [...otherIds];
-      newIds.splice(insertIdx, 0, ...groupProjectIds);
-      reorderAll(newIds);
+      reorderAll(finalOrder);
       resetDrag();
     } else if (sourceType === "project" && targetZone === "onto") {
       const targetItem = tree.find((t) => t.id === targetId);
@@ -245,68 +273,56 @@ export function ProjectList() {
       if (targetGroupId) {
         const sourceProj = projects.find((p) => p.id === sourceId);
         if (sourceProj?.group_id === targetGroupId) { resetDrag(); return; }
-        moveToGroup(sourceId, targetGroupId).then(() => {
-          const newIds = [...projectIds];
-          const si = newIds.indexOf(sourceId);
-          const ti = newIds.indexOf(targetId);
-          if (si !== -1 && ti !== -1) {
-            newIds.splice(si, 1);
-            newIds.splice(ti, 0, sourceId);
-            reorderAll(newIds);
-          }
-          resetDrag();
-        }).catch(() => { resetDrag(); });
+        const newOrder = [...projectIds];
+        const si = newOrder.indexOf(sourceId);
+        const ti = newOrder.indexOf(targetId);
+        if (si !== -1 && ti !== -1) {
+          newOrder.splice(si, 1);
+          newOrder.splice(ti, 0, sourceId);
+        }
+        batchMoveAndReorder(
+          [{ projectId: sourceId, groupId: targetGroupId }],
+          newOrder,
+        );
       } else {
         const color = nextGroupColor(groups);
         createGroup(t.groupDefaultName(groups.length + 1), color)
-          .then((newGroupId) => Promise.all([
-            moveToGroup(sourceId, newGroupId),
-            moveToGroup(targetId, newGroupId),
-          ]))
-          .then(() => resetDrag())
-          .catch(() => { resetDrag(); });
+          .then((newGroupId) => {
+            const newOrder = [...projectIds];
+            const si = newOrder.indexOf(sourceId);
+            const ti = newOrder.indexOf(targetId);
+            if (si !== -1 && ti !== -1) {
+              newOrder.splice(si, 1);
+              newOrder.splice(ti, 0, sourceId);
+            }
+            batchMoveAndReorder(
+              [{ projectId: sourceId, groupId: newGroupId }, { projectId: targetId, groupId: newGroupId }],
+              newOrder,
+            );
+          })
+          .catch(() => {});
       }
+      resetDrag();
     } else if (sourceType === "project" && (targetZone === "above" || targetZone === "below")) {
       const sourceGroupId = projects.find((p) => p.id === sourceId)?.group_id;
-      const targetIsGroupHeader = tree.find((t) => t.id === targetId)?.type === "group-header";
-
-      if (targetIsGroupHeader) {
-        const gid = groups.find((g) => g.id === targetId)?.id;
-        if (!gid) { resetDrag(); return; }
-        const groupProjectIds = projects.filter((p) => p.group_id === gid).map((p) => p.id);
-        const otherIds = projectIds.filter((id) => !groupProjectIds.includes(id));
-        const si = otherIds.indexOf(sourceId);
-        if (si === -1) { resetDrag(); return; }
-        otherIds.splice(si, 1);
-        const gi = targetZone === "below" ? otherIds.indexOf(groupProjectIds[groupProjectIds.length - 1]) : otherIds.indexOf(groupProjectIds[0]);
-        const insertIdx = targetZone === "below" ? gi + 1 : gi;
-        otherIds.splice(insertIdx, 0, sourceId);
-        reorderAll(otherIds);
-        if (sourceGroupId) {
-          moveToGroup(sourceId, null).catch(() => {});
-        }
+      if (sourceGroupId) {
+        batchMoveAndReorder(
+          [{ projectId: sourceId, groupId: null }],
+          finalOrder,
+        );
       } else {
-        const newIds = [...projectIds];
-        const si = newIds.indexOf(sourceId);
-        const ti = newIds.indexOf(targetId);
-        if (si === -1 || ti === -1) { resetDrag(); return; }
-        newIds.splice(si, 1);
-        const newTi = newIds.indexOf(targetId);
-        const insertIdx = targetZone === "below" ? newTi + 1 : newTi;
-        newIds.splice(insertIdx, 0, sourceId);
-        reorderAll(newIds);
-        if (sourceGroupId) {
-          moveToGroup(sourceId, null).catch(() => {});
-        }
+        reorderAll(finalOrder);
       }
       resetDrag();
     } else {
       resetDrag();
     }
-  }, [projects, groups, tree, reorderAll, createGroup, moveToGroup, t]);
+  }, [projects, groups, tree, reorderAll, createGroup, batchMoveAndReorder, t]);
 
   function resetDrag() {
     setDrag({ active: false, sourceId: "", sourceType: "project", mouseY: 0, targetId: null, targetZone: null, ontoGroupId: null });
+    swapOrderRef.current = [];
+    lastSwapTargetRef.current = null;
   }
 
   useEffect(() => {
@@ -373,7 +389,7 @@ export function ProjectList() {
         {visibleTree.map((item) => {
           if (item.type === "group-header") {
             const isDraggingGroup = drag.active && drag.sourceType === "group-header" && drag.sourceId === item.id;
-            const groupProjs = projects.filter((p) => p.group_id === item.groupId);
+            const groupProjs = renderProjects.filter((p) => p.group_id === item.groupId);
             const visibleGroupCount = filter.length > 0
               ? groupProjs.filter((p) => p.name.toLowerCase().includes(filter.toLowerCase())).length
               : groupProjs.length;
@@ -391,8 +407,6 @@ export function ProjectList() {
                     opacity: isDraggingGroup ? 0.4 : 1,
                     background: isOnto ? "var(--color-card)" : "transparent",
                     borderLeft: item.groupColor ? `3px solid ${item.groupColor}` : "3px solid transparent",
-                    borderTop: drag.active && drag.targetId === item.id && drag.targetZone === "above" ? "2px solid var(--color-primary-fg)" : "1px solid transparent",
-                    borderBottom: drag.active && drag.targetId === item.id && drag.targetZone === "below" ? "2px solid var(--color-primary-fg)" : "1px solid transparent",
                     cursor: filterActive ? "pointer" : "grab",
                   }}
                   onMouseEnter={(e) => { if (!drag.active) e.currentTarget.style.background = "var(--color-card)"; }}
@@ -430,8 +444,7 @@ export function ProjectList() {
                         opacity: isDragging ? 0 : 1,
                         background: selectedProjectId === p.id ? "var(--color-hover)" : (isOntoThis ? "var(--color-card)" : "transparent"),
                         borderLeft: selectedProjectId === p.id ? "2px solid var(--color-primary)" : `3px solid ${item.groupColor || "transparent"}`,
-                        borderTop: drag.active && drag.targetId === p.id && drag.targetZone === "above" ? "2px solid var(--color-primary-fg)" : "1px solid transparent",
-                        borderBottom: drag.active && drag.targetId === p.id && drag.targetZone === "below" ? "2px solid var(--color-primary-fg)" : "1px solid transparent",                        cursor: filterActive ? "pointer" : "grab",
+                        cursor: filterActive ? "pointer" : "grab",
                         boxShadow: isOntoThis ? `inset 0 0 0 2px ${item.groupColor}` : "none",
                         paddingLeft: "18px",
                         display: "flex",
@@ -452,7 +465,7 @@ export function ProjectList() {
                       {p.starred && <Star size={12} strokeWidth={1.5} color="var(--color-warning)" />}
                     </div>
                   );
-                })                }
+                })}
               </div>
             );
           }
@@ -465,15 +478,13 @@ export function ProjectList() {
             <div key={p.id}
               data-drag-target={p.id}
               onMouseDown={(e) => onMouseDown(e, p.id, "project")}
-              onClick={() => selectProject(p.id)}
+              onClick={() => { if (justDragged.current) { justDragged.current = false; return; } selectProject(p.id); }}
               style={{
                 padding: "8px 14px", margin: "1px 4px",
                 display: "flex", alignItems: "center", gap: 8,
                 cursor: filterActive ? "pointer" : "grab",
                 background: selectedProjectId === p.id ? "var(--color-hover)" : (isOntoThis ? "var(--color-card)" : "transparent"),
                 borderLeft: selectedProjectId === p.id ? "2px solid var(--color-primary)" : "2px solid transparent",
-                borderTop: drag.active && drag.targetId === p.id && drag.targetZone === "above" ? "2px solid var(--color-primary-fg)" : "1px solid transparent",
-                borderBottom: drag.active && drag.targetId === p.id && drag.targetZone === "below" ? "2px solid var(--color-primary-fg)" : "1px solid transparent",
                 opacity: isDragging ? 0 : 1,
                 boxShadow: isOntoThis ? "inset 0 0 0 2px var(--color-primary)" : "none",
                 transition: "background 0.12s ease, box-shadow 0.12s ease",

@@ -58,6 +58,7 @@ interface AppStore {
   toggleGroup: (id: string, collapsed: boolean) => Promise<void>;
   moveToGroup: (projectId: string, groupId: string | null) => Promise<void>;
   reorderAll: (projectIds: string[]) => void;
+  batchMoveAndReorder: (groupChanges: { projectId: string; groupId: string | null }[], finalOrder: string[]) => void;
   createTemplate: (name: string, description: string, files: TemplateFile[]) => Promise<void>;
   removeTemplate: (name: string) => Promise<void>;
   pinned: boolean;
@@ -291,6 +292,27 @@ export const useAppStore = create<AppStore>((set, get) => ({
       set({ projects: prevProjects });
       console.error("Failed to persist order:", e);
     }
+  },
+
+  batchMoveAndReorder: (groupChanges: { projectId: string; groupId: string | null }[], finalOrder: string[]) => {
+    const prevProjects = [...get().projects];
+    const changes = new Map(groupChanges.map((c) => [c.projectId, c.groupId]));
+
+    const updated = prevProjects.map((p) =>
+      changes.has(p.id) ? { ...p, group_id: changes.get(p.id)! } : p
+    );
+
+    const idSet = new Set(finalOrder);
+    const ordered = finalOrder.map((id) => updated.find((p) => p.id === id)!).filter(Boolean);
+    const remaining = updated.filter((p) => !idSet.has(p.id));
+    const finalProjects = [...ordered, ...remaining];
+
+    set({ projects: finalProjects });
+
+    for (const { projectId, groupId } of groupChanges) {
+      api.setProjectGroup(projectId, groupId).catch((e) => console.error("batch: setProjectGroup failed", e));
+    }
+    api.reorderAll(finalOrder).catch((e) => console.error("batch: reorderAll failed", e));
   },
 
   createTemplate: async (name, description, files) => {
