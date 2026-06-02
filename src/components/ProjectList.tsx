@@ -45,7 +45,6 @@ export function ProjectList() {
   dragRef.current = drag;
   const longPressTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
   const pressTarget = useRef<{ id: string; type: "project" | "group-header" } | null>(null);
-  const frozenTree = useRef<string[]>([]);
 
   const justDragged = useRef(false);
   const latestTargetRef = useRef<{ targetId: string; zone: Zone; ontoGroupId: string | null } | null>(null);
@@ -77,14 +76,17 @@ export function ProjectList() {
   }, []);
 
   const tree = buildTree(projects, groups);
-  const visibleTree = filter
-    ? tree.filter((item) => {
-        if (item.type === "group-header") return true;
+  const visibleTree = (drag.active || filter.length === 0)
+    ? tree
+    : tree.filter((item) => {
+        if (item.type === "group-header") {
+          const groupProjs = projects.filter((p) => p.group_id === item.groupId && p.name.toLowerCase().includes(filter.toLowerCase()));
+          return groupProjs.length > 0;
+        }
         return item.project?.name.toLowerCase().includes(filter.toLowerCase());
-      })
-    : tree;
+      });
 
-  const filterActive = filter.length > 0;
+  const filterActive = filter.length > 0 && !drag.active;
 
   const handleAdd = async () => {
     try {
@@ -130,7 +132,6 @@ export function ProjectList() {
 
     longPressTimer.current = setTimeout(() => {
       pressTarget.current = null;
-      frozenTree.current = projects.map((p) => p.id);
       setDrag({
         active: true,
         sourceId: id,
@@ -145,6 +146,17 @@ export function ProjectList() {
 
   const onMouseMove = useCallback((e: MouseEvent) => {
     if (!dragRef.current.active) return;
+
+    const container = scrollRef.current;
+    if (container) {
+      const rect = container.getBoundingClientRect();
+      const edge = 40;
+      if (e.clientY - rect.top < edge) {
+        container.scrollBy(0, -5);
+      } else if (rect.bottom - e.clientY < edge) {
+        container.scrollBy(0, 5);
+      }
+    }
 
     const target = findTargetByY(e.clientY);
     const state = dragRef.current;
@@ -245,7 +257,7 @@ export function ProjectList() {
           resetDrag();
         }).catch(() => { resetDrag(); });
       } else {
-        const color = nextGroupColor();
+        const color = nextGroupColor(groups);
         createGroup(t.groupDefaultName(groups.length + 1), color)
           .then((newGroupId) => Promise.all([
             moveToGroup(sourceId, newGroupId),
@@ -295,7 +307,6 @@ export function ProjectList() {
 
   function resetDrag() {
     setDrag({ active: false, sourceId: "", sourceType: "project", mouseY: 0, targetId: null, targetZone: null, ontoGroupId: null });
-    frozenTree.current = [];
   }
 
   useEffect(() => {
@@ -308,12 +319,6 @@ export function ProjectList() {
       };
     }
   }, [drag.active, onMouseMove, onMouseUp]);
-
-  useEffect(() => {
-    if (!drag.active) {
-      frozenTree.current = [];
-    }
-  }, [drag.active]);
 
   const handleGroupRename = (groupId: string) => {
     const g = groups.find((x) => x.id === groupId);
@@ -368,8 +373,10 @@ export function ProjectList() {
         {visibleTree.map((item) => {
           if (item.type === "group-header") {
             const isDraggingGroup = drag.active && drag.sourceType === "group-header" && drag.sourceId === item.id;
-            const isSourceCollapsed = item.groupCollapsed;
             const groupProjs = projects.filter((p) => p.group_id === item.groupId);
+            const visibleGroupCount = filter.length > 0
+              ? groupProjs.filter((p) => p.name.toLowerCase().includes(filter.toLowerCase())).length
+              : groupProjs.length;
             const isOnto = drag.active && drag.targetId === item.id && drag.targetZone === "onto" && drag.sourceType === "project";
 
             return (
@@ -384,6 +391,8 @@ export function ProjectList() {
                     opacity: isDraggingGroup ? 0.4 : 1,
                     background: isOnto ? "var(--color-card)" : "transparent",
                     borderLeft: item.groupColor ? `3px solid ${item.groupColor}` : "3px solid transparent",
+                    borderTop: drag.active && drag.targetId === item.id && drag.targetZone === "above" ? "2px solid var(--color-primary-fg)" : "1px solid transparent",
+                    borderBottom: drag.active && drag.targetId === item.id && drag.targetZone === "below" ? "2px solid var(--color-primary-fg)" : "1px solid transparent",
                     cursor: filterActive ? "pointer" : "grab",
                   }}
                   onMouseEnter={(e) => { if (!drag.active) e.currentTarget.style.background = "var(--color-card)"; }}
@@ -404,7 +413,7 @@ export function ProjectList() {
                     )}
                   </div>
                   <span style={{ fontSize: 10, color: "var(--color-text-muted)", marginRight: 4 }}>
-                    {item.groupCollapsed ? `(${groupProjs.length})` : `${groupProjs.length}`}
+                    {item.groupCollapsed ? `(${visibleGroupCount})` : `${visibleGroupCount}`}
                   </span>
                 </div>
 
@@ -421,7 +430,8 @@ export function ProjectList() {
                         opacity: isDragging ? 0 : 1,
                         background: selectedProjectId === p.id ? "var(--color-hover)" : (isOntoThis ? "var(--color-card)" : "transparent"),
                         borderLeft: selectedProjectId === p.id ? "2px solid var(--color-primary)" : `3px solid ${item.groupColor || "transparent"}`,
-                        cursor: filterActive ? "pointer" : "grab",
+                        borderTop: drag.active && drag.targetId === p.id && drag.targetZone === "above" ? "2px solid var(--color-primary-fg)" : "1px solid transparent",
+                        borderBottom: drag.active && drag.targetId === p.id && drag.targetZone === "below" ? "2px solid var(--color-primary-fg)" : "1px solid transparent",                        cursor: filterActive ? "pointer" : "grab",
                         boxShadow: isOntoThis ? `inset 0 0 0 2px ${item.groupColor}` : "none",
                         paddingLeft: "18px",
                         display: "flex",
@@ -442,13 +452,7 @@ export function ProjectList() {
                       {p.starred && <Star size={12} strokeWidth={1.5} color="var(--color-warning)" />}
                     </div>
                   );
-                })}
-
-                {item.groupCollapsed && isSourceCollapsed && drag.active && drag.sourceType === "group-header" && drag.sourceId === item.id && (
-                  groupProjs.map((p) => (
-                    <div key={p.id} style={{ height: 0, overflow: "hidden" }} />
-                  ))
-                )}
+                })                }
               </div>
             );
           }
@@ -468,6 +472,8 @@ export function ProjectList() {
                 cursor: filterActive ? "pointer" : "grab",
                 background: selectedProjectId === p.id ? "var(--color-hover)" : (isOntoThis ? "var(--color-card)" : "transparent"),
                 borderLeft: selectedProjectId === p.id ? "2px solid var(--color-primary)" : "2px solid transparent",
+                borderTop: drag.active && drag.targetId === p.id && drag.targetZone === "above" ? "2px solid var(--color-primary-fg)" : "1px solid transparent",
+                borderBottom: drag.active && drag.targetId === p.id && drag.targetZone === "below" ? "2px solid var(--color-primary-fg)" : "1px solid transparent",
                 opacity: isDragging ? 0 : 1,
                 boxShadow: isOntoThis ? "inset 0 0 0 2px var(--color-primary)" : "none",
                 transition: "background 0.12s ease, box-shadow 0.12s ease",

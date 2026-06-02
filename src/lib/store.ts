@@ -78,11 +78,12 @@ export const GROUP_COLORS = [
   "#4a6a6a", "#6a5a6a", "#7a5a6a", "#5a5a5a",
 ];
 
-let _colorIdx = 0;
-export function nextGroupColor(): string {
-  const c = GROUP_COLORS[_colorIdx % GROUP_COLORS.length];
-  _colorIdx++;
-  return c;
+export function nextGroupColor(existingGroups: GroupInfo[]): string {
+  const usedColors = new Set(existingGroups.map((g) => g.color));
+  for (const c of GROUP_COLORS) {
+    if (!usedColors.has(c)) return c;
+  }
+  return GROUP_COLORS[0];
 }
 
 export function buildTree(projects: Project[], groups: GroupInfo[]): TreeItem[] {
@@ -278,13 +279,18 @@ export const useAppStore = create<AppStore>((set, get) => ({
     set({ projects: get().projects.map((p) => p.id === projectId ? { ...p, group_id: groupId } : p) });
   },
 
-  reorderAll: (projectIds) => {
-    const projects = get().projects;
+  reorderAll: async (projectIds) => {
+    const prevProjects = [...get().projects];
     const idSet = new Set(projectIds);
-    const ordered = projectIds.map((id) => projects.find((p) => p.id === id)!).filter(Boolean);
-    const remaining = projects.filter((p) => !idSet.has(p.id));
+    const ordered = projectIds.map((id) => prevProjects.find((p) => p.id === id)!).filter(Boolean);
+    const remaining = prevProjects.filter((p) => !idSet.has(p.id));
     set({ projects: [...ordered, ...remaining] });
-    api.reorderAll(projectIds).catch((e) => console.error("Failed to persist order:", e));
+    try {
+      await api.reorderAll(projectIds);
+    } catch (e) {
+      set({ projects: prevProjects });
+      console.error("Failed to persist order:", e);
+    }
   },
 
   createTemplate: async (name, description, files) => {
