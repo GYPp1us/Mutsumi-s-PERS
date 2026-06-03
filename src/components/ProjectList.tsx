@@ -336,11 +336,7 @@ function SortableItem({ id, item, dragMeta, savedSelected, filterActive, selectP
 
   return (
     <div key={id}
-      ref={(el) => {
-        ref(el);
-        if (el) handleRef(el);
-      }}
-      data-drag-id={id}
+      ref={ref}
       onClick={() => { if (!isDragSource) selectProject(p.id); }}
       style={{
         padding: "8px 14px", margin: "1px 4px",
@@ -355,7 +351,9 @@ function SortableItem({ id, item, dragMeta, savedSelected, filterActive, selectP
       onMouseEnter={(e) => { if (!isDragSource && savedSelected !== p.id) e.currentTarget.style.background = "var(--color-card)"; }}
       onMouseLeave={(e) => { if (!isDragSource && savedSelected !== p.id) e.currentTarget.style.background = "transparent"; }}
     >
-      <Folder size={14} strokeWidth={1.5} />
+      <span ref={handleRef} style={{ display: "flex", cursor: "grab" }}>
+        <Folder size={14} strokeWidth={1.5} />
+      </span>
       <div style={{ flex: 1, minWidth: 0 }}>
         <div style={{ color: "var(--color-text)", overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>
           {p.name}
@@ -380,13 +378,8 @@ function SortableGroupHeader({ id, item, dragMeta, projects, isDragging, filterA
     : groupProjs.length;
 
   return (
-    <div key={id}>
+    <div key={id} ref={ref}>
       <div
-        ref={(el) => {
-          ref(el);
-          if (el) handleRef(el);
-        }}
-        data-drag-id={id}
         onClick={(e: any) => { e.stopPropagation(); onToggle(item.groupId!, !item.groupCollapsed); }}
         onDoubleClick={(e: any) => { e.stopPropagation(); onRename(item.groupId!); }}
         className="group-header"
@@ -399,8 +392,10 @@ function SortableGroupHeader({ id, item, dragMeta, projects, isDragging, filterA
         onMouseEnter={(e: any) => { if (!isDragging) e.currentTarget.style.background = "var(--color-card)"; }}
         onMouseLeave={(e: any) => { if (!isDragging) e.currentTarget.style.background = isOnto ? "var(--color-card)" : "transparent"; }}
       >
-        <div style={{ display: "flex", alignItems: "center", gap: 4, flex: 1, minWidth: 0 }}>
+        <span ref={handleRef} style={{ display: "flex", alignItems: "center", cursor: "grab", marginRight: 6 }}>
           {item.groupCollapsed ? <ChevronRight size={14} strokeWidth={1.5} /> : <ChevronDown size={14} strokeWidth={1.5} />}
+        </span>
+        <div style={{ display: "flex", alignItems: "center", gap: 4, flex: 1, minWidth: 0 }}>
           {editingGroupId === item.id ? (
             <input autoFocus className="group-header-rename-input" value={editName}
               onChange={(e: any) => onEditName(e.target.value)}
@@ -418,44 +413,11 @@ function SortableGroupHeader({ id, item, dragMeta, projects, isDragging, filterA
         </span>
       </div>
 
-      {!item.groupCollapsed && groupProjs.map((p: Project) => {
-        const pid = p.id;
-        const ispOnto = dragMeta.activeId !== null && dragMeta.activeId !== pid && dragMeta.zone === "onto" && dragMeta.ontoGroupId === item.groupId;
-        const ispSource = dragMeta.activeId === pid;
-        return (
-          <div key={pid}
-            data-drag-id={pid}
-            onClick={() => { selectProject(pid); }}
-            className="group-item"
-            style={{
-              opacity: ispSource ? 0 : 1,
-              background: savedSelected === pid ? "var(--color-hover)" : (ispOnto ? "var(--color-card)" : "transparent"),
-              borderLeft: savedSelected === pid ? "2px solid var(--color-primary)" : `3px solid ${item.groupColor || "transparent"}`,
-              cursor: filterActive ? "pointer" : "grab",
-              boxShadow: ispOnto ? `inset 0 0 0 2px ${item.groupColor}` : "none",
-              paddingLeft: "18px",
-              display: "flex",
-              alignItems: "center",
-              padding: "7px 14px 7px 18px",
-              margin: "1px 4px",
-              userSelect: "none",
-            }}
-            onMouseEnter={(e: any) => { if (!isDragging && savedSelected !== pid) e.currentTarget.style.background = "var(--color-card)"; }}
-            onMouseLeave={(e: any) => { if (!isDragging && savedSelected !== pid) e.currentTarget.style.background = "transparent"; }}
-          >
-            <Folder size={14} strokeWidth={1.5} />
-            <div style={{ flex: 1, minWidth: 0, marginLeft: 8 }}>
-              <div style={{ color: "var(--color-text)", overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap", fontSize: 13 }}>
-                {p.name}
-              </div>
-              <div style={{ fontSize: 10, color: "var(--color-text-muted)", overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>
-                {p.path}
-              </div>
-            </div>
-            {p.starred && <Star size={12} strokeWidth={1.5} color="var(--color-warning)" />}
-          </div>
-        );
-      })}
+      {!item.groupCollapsed && groupProjs.map((p: Project) => (
+        <GroupedProjectItem key={p.id} project={p} dragMeta={dragMeta} savedSelected={savedSelected}
+          filterActive={filterActive} groupColor={item.groupColor || "transparent"}
+          isDragging={isDragging} selectProject={selectProject} />
+      ))}
     </div>
   );
 }
@@ -498,6 +460,50 @@ function OverlayCard({ id, itemMap, dragMeta, groups, projects }: {
           {item.project?.starred && <Star size={12} strokeWidth={1.5} color="var(--color-warning)" />}
         </>
       )}
+    </div>
+  );
+}
+
+function GroupedProjectItem({ project, dragMeta, savedSelected, filterActive, groupColor, isDragging, selectProject }: {
+  project: Project; dragMeta: DragMeta; savedSelected: string | null;
+  filterActive: boolean; groupColor: string; isDragging: boolean;
+  selectProject: (id: string | null) => void;
+}) {
+  const { isDragSource, handleRef, ref } = useDraggable({ id: project.id, disabled: filterActive });
+  const ispOnto = dragMeta.activeId !== null && dragMeta.activeId !== project.id && dragMeta.zone === "onto" && dragMeta.ontoGroupId === project.group_id;
+  const ispSource = dragMeta.activeId === project.id;
+  return (
+    <div
+      ref={ref}
+      onClick={() => { if (!isDragSource) selectProject(project.id); }}
+      className="group-item"
+      style={{
+        opacity: ispSource ? 0 : 1,
+        background: savedSelected === project.id ? "var(--color-hover)" : (ispOnto ? "var(--color-card)" : "transparent"),
+        borderLeft: savedSelected === project.id ? "2px solid var(--color-primary)" : `3px solid ${groupColor}`,
+        cursor: filterActive ? "pointer" : "grab",
+        boxShadow: ispOnto ? `inset 0 0 0 2px ${groupColor}` : "none",
+        padding: "7px 14px 7px 18px",
+        margin: "1px 4px",
+        display: "flex",
+        alignItems: "center",
+        userSelect: "none",
+      }}
+      onMouseEnter={(e: any) => { if (!isDragging && savedSelected !== project.id) e.currentTarget.style.background = "var(--color-card)"; }}
+      onMouseLeave={(e: any) => { if (!isDragging && savedSelected !== project.id) e.currentTarget.style.background = "transparent"; }}
+    >
+      <span ref={handleRef} style={{ display: "flex", cursor: "grab" }}>
+        <Folder size={14} strokeWidth={1.5} />
+      </span>
+      <div style={{ flex: 1, minWidth: 0, marginLeft: 8 }}>
+        <div style={{ color: "var(--color-text)", overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap", fontSize: 13 }}>
+          {project.name}
+        </div>
+        <div style={{ fontSize: 10, color: "var(--color-text-muted)", overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>
+          {project.path}
+        </div>
+      </div>
+      {project.starred && <Star size={12} strokeWidth={1.5} color="var(--color-warning)" />}
     </div>
   );
 }
