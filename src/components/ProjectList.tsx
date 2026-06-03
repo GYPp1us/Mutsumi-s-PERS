@@ -76,7 +76,7 @@ export function ProjectList() {
 
   const pointerSensor = PointerSensor.configure({
     activationConstraints: [
-      new PointerActivationConstraints.Delay({ value: 300, tolerance: 5 }),
+      new PointerActivationConstraints.Distance({ value: 5, tolerance: 3 }),
     ],
   });
 
@@ -336,7 +336,7 @@ function SortableItem({ id, item, dragMeta, savedSelected, filterActive, selectP
 
   return (
     <div key={id}
-      ref={ref}
+      ref={(el) => { ref(el); if (el) handleRef(el); }}
       onClick={() => { if (!isDragSource) selectProject(p.id); }}
       style={{
         padding: "8px 14px", margin: "1px 4px",
@@ -351,9 +351,7 @@ function SortableItem({ id, item, dragMeta, savedSelected, filterActive, selectP
       onMouseEnter={(e) => { if (!isDragSource && savedSelected !== p.id) e.currentTarget.style.background = "var(--color-card)"; }}
       onMouseLeave={(e) => { if (!isDragSource && savedSelected !== p.id) e.currentTarget.style.background = "transparent"; }}
     >
-      <span ref={handleRef} style={{ display: "flex", cursor: "grab" }}>
-        <Folder size={14} strokeWidth={1.5} />
-      </span>
+      <Folder size={14} strokeWidth={1.5} />
       <div style={{ flex: 1, minWidth: 0 }}>
         <div style={{ color: "var(--color-text)", overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>
           {p.name}
@@ -378,7 +376,7 @@ function SortableGroupHeader({ id, item, dragMeta, projects, isDragging, filterA
     : groupProjs.length;
 
   return (
-    <div key={id} ref={ref}>
+    <div key={id} ref={(el) => { ref(el); if (el) handleRef(el); }}>
       <div
         onClick={(e: any) => { e.stopPropagation(); onToggle(item.groupId!, !item.groupCollapsed); }}
         onDoubleClick={(e: any) => { e.stopPropagation(); onRename(item.groupId!); }}
@@ -392,7 +390,7 @@ function SortableGroupHeader({ id, item, dragMeta, projects, isDragging, filterA
         onMouseEnter={(e: any) => { if (!isDragging) e.currentTarget.style.background = "var(--color-card)"; }}
         onMouseLeave={(e: any) => { if (!isDragging) e.currentTarget.style.background = isOnto ? "var(--color-card)" : "transparent"; }}
       >
-        <span ref={handleRef} style={{ display: "flex", alignItems: "center", cursor: "grab", marginRight: 6 }}>
+        <span style={{ display: "flex", alignItems: "center", marginRight: 6 }}>
           {item.groupCollapsed ? <ChevronRight size={14} strokeWidth={1.5} /> : <ChevronDown size={14} strokeWidth={1.5} />}
         </span>
         <div style={{ display: "flex", alignItems: "center", gap: 4, flex: 1, minWidth: 0 }}>
@@ -474,7 +472,7 @@ function GroupedProjectItem({ project, dragMeta, savedSelected, filterActive, gr
   const ispSource = dragMeta.activeId === project.id;
   return (
     <div
-      ref={ref}
+      ref={(el) => { ref(el); if (el) handleRef(el); }}
       onClick={() => { if (!isDragSource) selectProject(project.id); }}
       className="group-item"
       style={{
@@ -492,9 +490,7 @@ function GroupedProjectItem({ project, dragMeta, savedSelected, filterActive, gr
       onMouseEnter={(e: any) => { if (!isDragging && savedSelected !== project.id) e.currentTarget.style.background = "var(--color-card)"; }}
       onMouseLeave={(e: any) => { if (!isDragging && savedSelected !== project.id) e.currentTarget.style.background = "transparent"; }}
     >
-      <span ref={handleRef} style={{ display: "flex", cursor: "grab" }}>
-        <Folder size={14} strokeWidth={1.5} />
-      </span>
+      <Folder size={14} strokeWidth={1.5} />
       <div style={{ flex: 1, minWidth: 0, marginLeft: 8 }}>
         <div style={{ color: "var(--color-text)", overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap", fontSize: 13 }}>
           {project.name}
