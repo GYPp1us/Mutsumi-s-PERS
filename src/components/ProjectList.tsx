@@ -273,7 +273,7 @@ export function ProjectList() {
       if (targetGroupId) {
         const sourceProj = projects.find((p) => p.id === sourceId);
         if (sourceProj?.group_id === targetGroupId) { resetDrag(); return; }
-        const newOrder = [...projectIds];
+        const newOrder = [...finalOrder];
         const si = newOrder.indexOf(sourceId);
         const ti = newOrder.indexOf(targetId);
         if (si !== -1 && ti !== -1) {
@@ -284,11 +284,12 @@ export function ProjectList() {
           [{ projectId: sourceId, groupId: targetGroupId }],
           newOrder,
         );
+        resetDrag();
       } else {
         const color = nextGroupColor(groups);
         createGroup(t.groupDefaultName(groups.length + 1), color)
           .then((newGroupId) => {
-            const newOrder = [...projectIds];
+            const newOrder = [...finalOrder];
             const si = newOrder.indexOf(sourceId);
             const ti = newOrder.indexOf(targetId);
             if (si !== -1 && ti !== -1) {
@@ -299,10 +300,11 @@ export function ProjectList() {
               [{ projectId: sourceId, groupId: newGroupId }, { projectId: targetId, groupId: newGroupId }],
               newOrder,
             );
+            resetDrag();
           })
-          .catch(() => {});
+          .catch(() => { resetDrag(); });
+        return;
       }
-      resetDrag();
     } else if (sourceType === "project" && (targetZone === "above" || targetZone === "below")) {
       const sourceGroupId = projects.find((p) => p.id === sourceId)?.group_id;
       if (sourceGroupId) {
