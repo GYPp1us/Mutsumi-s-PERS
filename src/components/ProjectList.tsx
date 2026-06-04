@@ -55,7 +55,7 @@ export function ProjectList() {
   }, [isDragging, order, filteredOrder, itemMap]);
 
   const pointerSensor = useMemo(() => PointerSensor.configure({
-    activationConstraints: [new PointerActivationConstraints.Distance({ value: 5, tolerance: 3 })],
+    activationConstraints: [new PointerActivationConstraints.Delay({ value: 300, tolerance: 5 })],
   }), []);
 
   const getZone = (y: number, rect: DOMRect): Zone => {
@@ -71,7 +71,7 @@ export function ProjectList() {
     return null;
   };
 
-  const handleDragStart = () => { setActiveId(""); setDragZone(null); setOntoGroupId(null); };
+  const handleDragStart = (e: any) => { setActiveId(e.operation?.source?.id || ""); setDragZone(null); setOntoGroupId(null); };
 
   const handleDragOver = (e: any) => {
     const source = e.operation?.source;
@@ -150,7 +150,7 @@ export function ProjectList() {
   const activeItem = activeId ? itemMap.get(activeId) : null;
 
   return (
-    <DragDropProvider plugins={[pointerSensor]} onDragStart={handleDragStart} onDragOver={handleDragOver} onDragEnd={handleDragEnd}>
+    <DragDropProvider plugins={(defaults) => [...defaults, pointerSensor]} onDragStart={handleDragStart} onDragOver={handleDragOver} onDragEnd={handleDragEnd}>
       <aside style={{ width: 260, background: "var(--color-base)", display: "flex", flexDirection: "column", flexShrink: 0, borderRight: "1px solid var(--color-hover)", position: "relative" }}>
         <div style={{ padding: "14px 16px", display: "flex", alignItems: "center", justifyContent: "space-between" }}>
           <span style={{ fontSize: 14, fontWeight: 600, color: "var(--color-text)" }}>{t.projectListTitle}</span>
