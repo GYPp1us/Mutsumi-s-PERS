@@ -8,8 +8,8 @@ import { useSortable, isSortable } from "@dnd-kit/react/sortable";
 import { PointerSensor, PointerActivationConstraints } from "@dnd-kit/dom";
 
 type Zone = "above" | "onto" | "below" | null;
-const ZONE_TOP = 0.25;
-const ZONE_BOTTOM = 0.75;
+const ZONE_TOP = 0.30;
+const ZONE_BOTTOM = 0.70;
 
 function arrayMove<T>(arr: T[], from: number, to: number): T[] {
   const copy = [...arr];
@@ -149,16 +149,24 @@ export function ProjectList() {
 
     let reordered = arrayMove(displayItems, source.initialIndex, source.index);
 
+    // Find source item from displayItems directly (more reliable)
+    const sourceDisplayItem = reordered.find((it) => it.id === (source.id as string)) || reordered[source.index];
+    const sourceType = sourceDisplayItem?.type || sourceItem.type;
+    const sourceProj = sourceDisplayItem?.project || sourceItem.project;
+
     // If dragging a group header, move all its projects along with it
-    if (sourceItem.type === "group-header") {
-      const gid = sourceItem.groupId!;
-      const groupProjIds = new Set(projects.filter((p) => p.group_id === gid).map((p) => p.id));
-      // Remove group projects
-      const withoutProjects = reordered.filter((it) => it.type !== "project" || !groupProjIds.has(it.id));
-      const headerIdx = withoutProjects.findIndex((it) => it.id === (source.id as string));
-      const visibleGroupItems = reordered.filter((it) => it.type === "project" && groupProjIds.has(it.id));
-      withoutProjects.splice(headerIdx + 1, 0, ...visibleGroupItems);
-      reordered = withoutProjects;
+    if (sourceType === "group-header") {
+      const gid = sourceDisplayItem?.groupId || sourceItem.groupId;
+      if (gid) {
+        const groupProjIds = new Set(projects.filter((p) => p.group_id === gid).map((p) => p.id));
+        const withoutProjects = reordered.filter((it) => it.type !== "project" || !groupProjIds.has(it.id));
+        const headerIdx = withoutProjects.findIndex((it) => it.id === (source.id as string));
+        const visibleGroupItems = reordered.filter((it) => it.type === "project" && groupProjIds.has(it.id));
+        if (headerIdx !== -1) {
+          withoutProjects.splice(headerIdx + 1, 0, ...visibleGroupItems);
+          reordered = withoutProjects;
+        }
+      }
     }
 
     // Reconstruct project order preserving individual positions
@@ -169,16 +177,25 @@ export function ProjectList() {
         fullProjectIds.push(it.id);
         mapped.add(it.id);
       } else if (it.type === "group-header" && it.groupCollapsed && it.groupId) {
-        // Collapsed group: projects not in reordered, add them here
         const gprojs = projects.filter((p) => p.group_id === it.groupId).map((p) => p.id);
         for (const pid of gprojs) { if (!mapped.has(pid)) { fullProjectIds.push(pid); mapped.add(pid); } }
       }
     }
     for (const p of projects) { if (!mapped.has(p.id)) { fullProjectIds.push(p.id); mapped.add(p.id); } }
 
-    const sourceGroupId = sourceItem.type === "project" ? sourceItem.project?.group_id : null;
-    const sourceIsLeavingGroup = !!sourceGroupId && zone !== "onto";
-    if (sourceIsLeavingGroup) {
+    const sourceGroupId = sourceProj?.group_id;
+    const leavingByZone = !!sourceGroupId && zone !== "onto";
+    const leavingByNeighbor = sourceType === "project" && sourceGroupId && zone !== "onto"
+      ? (() => {
+          const newIdx = reordered.findIndex((it) => it.id === (source.id as string));
+          const prev = reordered[newIdx - 1];
+          const next = reordered[newIdx + 1];
+          const prevG = prev?.type === "project" ? prev.project?.group_id : null;
+          const nextG = next?.type === "project" ? next.project?.group_id : null;
+          return prevG !== sourceGroupId && nextG !== sourceGroupId;
+        })()
+      : false;
+    if (leavingByZone || leavingByNeighbor) {
       batchMoveAndReorder([{ projectId: source.id as string, groupId: null }], fullProjectIds);
     } else {
       reorderAll(fullProjectIds);
