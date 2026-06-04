@@ -1,23 +1,15 @@
 import { useState, useEffect, useMemo } from "react";
 import { useAppStore, buildTree, nextGroupColor } from "../lib/store";
 import type { Project } from "../lib/tauri";
-import type { TreeItem } from "../lib/store";
 import { useT } from "../lib/i18n";
-import { Home, Folder, Star, Plus, ChevronDown, ChevronRight } from "lucide-react";
-import { DragDropProvider, DragOverlay, useDraggable } from "@dnd-kit/react";
+import { Home, Folder, Star, Plus, ChevronDown, ChevronRight, GripVertical } from "lucide-react";
+import { DragDropProvider, DragOverlay } from "@dnd-kit/react";
+import { useSortable } from "@dnd-kit/react/sortable";
 import { PointerSensor, PointerActivationConstraints } from "@dnd-kit/dom";
 
 type Zone = "above" | "onto" | "below" | null;
 const ZONE_TOP = 0.25;
 const ZONE_BOTTOM = 0.75;
-
-interface DragMeta {
-  activeId: string | null;
-  activeType: "project" | "group-header";
-  zone: Zone;
-  ontoGroupId: string | null;
-  targetId: string | null; // current hovered target
-}
 
 export function ProjectList() {
   const t = useT();
@@ -32,474 +24,274 @@ export function ProjectList() {
   const renameGroup = useAppStore((s) => s.renameGroup);
   const toggleGroup = useAppStore((s) => s.toggleGroup);
   const batchMoveAndReorder = useAppStore((s) => s.batchMoveAndReorder);
-  const loadProjects = useAppStore((s) => s.loadProjects);
-  const loadGroups = useAppStore((s) => s.loadGroups);
-  const loadSettings = useAppStore((s) => s.loadSettings);
 
   const [filter, setFilter] = useState("");
   const [editingGroupId, setEditingGroupId] = useState<string | null>(null);
   const [editName, setEditName] = useState("");
-  const [dragMeta, setDragMeta] = useState<DragMeta>({ activeId: null, activeType: "project", zone: null, ontoGroupId: null, targetId: null });
-  const [order, setOrder] = useState<string[]>([]);
-  const isDragging = dragMeta.activeId !== null;
+  const [activeId, setActiveId] = useState<string | null>(null);
+  const [dragZone, setDragZone] = useState<Zone>(null);
+  const [ontoGroupId, setOntoGroupId] = useState<string | null>(null);
+  const isDragging = activeId !== null;
 
   const flatItems = useMemo(() => buildTree(projects, groups), [projects, groups]);
   const itemMap = useMemo(() => new Map(flatItems.map((i) => [i.id, i])), [flatItems]);
+  const [order, setOrder] = useState<string[]>([]);
 
-  useEffect(() => {
-    loadProjects();
-    loadGroups();
-    loadSettings();
-  }, []);
-
-  useEffect(() => {
-    if (!isDragging) {
-      setOrder(flatItems.map((i) => i.id));
-    }
-  }, [flatItems, isDragging]);
+  useEffect(() => { if (!isDragging) setOrder(flatItems.map((i) => i.id)); }, [flatItems, isDragging]);
 
   const filteredOrder = useMemo(() => {
     if (!filter || isDragging) return order;
     return order.filter((id) => {
       const item = itemMap.get(id);
       if (!item) return false;
-      if (item.type === "group-header") {
-        const gid = item.groupId;
-        if (!gid) return false;
-        return projects.some((p) => p.group_id === gid && p.name.toLowerCase().includes(filter.toLowerCase()));
-      }
+      if (item.type === "group-header") return item.groupId && projects.some((p) => p.group_id === item.groupId && p.name.toLowerCase().includes(filter.toLowerCase()));
       return item.project?.name.toLowerCase().includes(filter.toLowerCase());
     });
   }, [order, filter, isDragging, itemMap, projects]);
 
-  const filterActive = filter.length > 0 && !isDragging;
+  const visibleItems = useMemo(() => {
+    const ids = isDragging ? order : filteredOrder;
+    return ids.map((id) => itemMap.get(id)!).filter(Boolean).filter((i) => !i.isGrouped);
+  }, [isDragging, order, filteredOrder, itemMap]);
 
-  const pointerSensor = PointerSensor.configure({
-    activationConstraints: [
-      new PointerActivationConstraints.Distance({ value: 5, tolerance: 3 }),
-    ],
-  });
+  const pointerSensor = useMemo(() => PointerSensor.configure({
+    activationConstraints: [new PointerActivationConstraints.Distance({ value: 5, tolerance: 3 })],
+  }), []);
 
-  const getZone = (clientY: number, rect: DOMRect): Zone => {
-    const ratio = (clientY - rect.top) / rect.height;
-    if (ratio < ZONE_TOP) return "above";
-    if (ratio > ZONE_BOTTOM) return "below";
-    return "onto";
+  const getZone = (y: number, rect: DOMRect): Zone => {
+    const r = (y - rect.top) / rect.height;
+    if (r < ZONE_TOP) return "above"; if (r > ZONE_BOTTOM) return "below"; return "onto";
   };
 
-  const swapOrder = (sourceId: string, targetId: string) => {
-    const idx = [...order];
-    const si = idx.indexOf(sourceId);
-    const ti = idx.indexOf(targetId);
-    if (si === -1 || ti === -1 || si === ti) return;
-    idx.splice(si, 1);
-    const newTi = idx.indexOf(targetId);
-    idx.splice(newTi, 0, sourceId);
-    setOrder(idx);
-  };
-
-  const moveGroupBlock = (groupHeaderId: string, targetId: string, zone: "above" | "below") => {
-    const groupItem = itemMap.get(groupHeaderId);
-    if (!groupItem?.groupId) return;
-    const gid = groupItem.groupId;
-    const groupIds = flatItems.filter((i) => i.isGrouped && i.project?.group_id === gid).map((i) => i.id);
-    const allGroupIds = [groupHeaderId, ...groupIds];
-    const otherIds = order.filter((id) => !allGroupIds.includes(id));
-    const tIdx = otherIds.indexOf(targetId);
-    if (tIdx === -1) return;
-    const insertIdx = zone === "below" ? tIdx + 1 : tIdx;
-    const newOrder = [...otherIds];
-    newOrder.splice(insertIdx, 0, ...allGroupIds);
-    setOrder(newOrder);
-  };
-
-  const handleDragStart = () => {
-    setOrder(flatItems.map((i) => i.id));
-  };
-
-  const handleDragMove = (e: any) => {
-    const operation = e.operation;
-    const source = operation.source;
-    const target = operation.target;
-    if (!source || !target) return;
-
-    const sourceItem = itemMap.get(source.id);
-    if (!sourceItem) return;
-
-    const targetEl = (target as any)?.element as HTMLElement | undefined;
-    if (!targetEl) return;
-
-    const rect = targetEl.getBoundingClientRect();
-    const pointer = operation.position;
-    const zone = getZone(pointer.y, rect);
-
-    setDragMeta({
-      activeId: source.id,
-      activeType: sourceItem.type === "group-header" ? "group-header" : "project",
-      zone,
-      ontoGroupId: zone === "onto" ? getTargetGroupId(target.id) : null,
-      targetId: target.id,
-    });
-
-    if (sourceItem.type === "group-header" && (zone === "above" || zone === "below") && source.id !== target.id) {
-      moveGroupBlock(source.id, target.id, zone);
-    } else if (source.id !== target.id && (zone === "above" || zone === "below")) {
-      swapOrder(source.id, target.id);
-    }
-  };
-
-  const getTargetGroupId = (targetId: string): string | null => {
-    const item = itemMap.get(targetId);
+  const getTargetGroupId = (id: string): string | null => {
+    const item = itemMap.get(id);
     if (!item) return null;
-    if (item.type === "project" && item.project) return item.project.group_id || null;
     if (item.type === "group-header") return item.groupId || null;
+    if (item.project?.group_id) return item.project.group_id;
     return null;
   };
 
+  const handleDragStart = () => { setActiveId(""); setDragZone(null); setOntoGroupId(null); };
+
+  const handleDragOver = (e: any) => {
+    const source = e.operation?.source;
+    const target = e.operation?.target;
+    if (!source || !target) return;
+    setActiveId(source.id);
+    const targetEl = (target as any)?.element as HTMLElement;
+    if (!targetEl) return;
+    const rect = targetEl.getBoundingClientRect();
+    const zone = getZone(e.operation.position.y, rect);
+    setDragZone(zone);
+    setOntoGroupId(zone === "onto" ? getTargetGroupId(target.id) : null);
+  };
+
   const handleDragEnd = (e: any) => {
-    const source = e.operation.source;
-    const target = e.operation.target;
-    const meta = dragMeta;
-    setDragMeta({ activeId: null, activeType: "project", zone: null, ontoGroupId: null, targetId: null });
+    const source = e.operation?.source;
+    const target = e.operation?.target;
+    const zone = dragZone;
+    setActiveId(null); setDragZone(null); setOntoGroupId(null);
 
-    if (!source || !target || !meta.zone) return;
-
+    if (!source || !target || !zone) return;
     const sourceItem = itemMap.get(source.id);
     if (!sourceItem) return;
 
     const projectIds = projects.map((p) => p.id);
-    const finalProjectIds = order
-      .map((id) => {
-        const item = itemMap.get(id);
-        if (!item) return null;
-        if (item.type === "project") return item.id;
-        return null;
-      })
-      .filter(Boolean) as string[];
+    const finalProjectIds = order.map((id) => {
+      const item = itemMap.get(id);
+      if (item?.type === "project") return item.id;
+      return null;
+    }).filter(Boolean) as string[];
 
-    if (sourceItem.type === "group-header" && (meta.zone === "above" || meta.zone === "below")) {
+    if (sourceItem.type === "group-header" && (zone === "above" || zone === "below")) {
       reorderAll(finalProjectIds);
-    } else if (sourceItem.type === "project" && meta.zone === "onto") {
-      const targetGroupId = getTargetGroupId(target.id);
-      if (targetGroupId) {
-        const srcProj = projects.find((p) => p.id === source.id);
-        if (srcProj?.group_id === targetGroupId) return;
-        const newOrder = [...projectIds];
-        const si = newOrder.indexOf(source.id);
-        const ti = newOrder.indexOf(target.id);
-        if (si !== -1 && ti !== -1) {
-          newOrder.splice(si, 1);
-          newOrder.splice(ti, 0, source.id);
-        }
-        batchMoveAndReorder([{ projectId: source.id, groupId: targetGroupId }], newOrder);
+    } else if (sourceItem.type === "project" && zone === "onto") {
+      const tgid = getTargetGroupId(target.id);
+      if (tgid) {
+        const sp = projects.find((p) => p.id === source.id);
+        if (sp?.group_id === tgid) return;
+        const no = [...projectIds];
+        const si = no.indexOf(source.id), ti = no.indexOf(target.id);
+        if (si !== -1 && ti !== -1) { no.splice(si, 1); no.splice(ti, 0, source.id); }
+        batchMoveAndReorder([{ projectId: source.id, groupId: tgid }], no);
       } else {
         const color = nextGroupColor(groups);
-        createGroup(t.groupDefaultName(groups.length + 1), color)
-          .then((newGroupId) => {
-            const newOrder = [...finalProjectIds];
-            const si = newOrder.indexOf(source.id);
-            const ti = newOrder.indexOf(target.id);
-            if (si !== -1 && ti !== -1) {
-              newOrder.splice(si, 1);
-              newOrder.splice(ti, 0, source.id);
-            }
-            batchMoveAndReorder(
-              [{ projectId: source.id, groupId: newGroupId }, { projectId: target.id, groupId: newGroupId }],
-              newOrder,
-            );
-          })
-          .catch(() => {});
+        createGroup(t.groupDefaultName(groups.length + 1), color).then((ngid) => {
+          const no = [...finalProjectIds];
+          const si = no.indexOf(source.id), ti = no.indexOf(target.id);
+          if (si !== -1 && ti !== -1) { no.splice(si, 1); no.splice(ti, 0, source.id); }
+          batchMoveAndReorder([{ projectId: source.id, groupId: ngid }, { projectId: target.id, groupId: ngid }], no);
+        }).catch(() => {});
       }
-    } else if (sourceItem.type === "project" && (meta.zone === "above" || meta.zone === "below")) {
-      const srcGroupId = projects.find((p) => p.id === source.id)?.group_id;
-      if (srcGroupId) {
-        batchMoveAndReorder([{ projectId: source.id, groupId: null }], finalProjectIds);
-      } else {
-        reorderAll(finalProjectIds);
-      }
+    } else if (sourceItem.type === "project" && (zone === "above" || zone === "below")) {
+      const sgid = projects.find((p) => p.id === source.id)?.group_id;
+      if (sgid) batchMoveAndReorder([{ projectId: source.id, groupId: null }], finalProjectIds);
+      else reorderAll(finalProjectIds);
     }
   };
 
-  const handleGroupRename = (groupId: string) => {
-    const g = groups.find((x) => x.id === groupId);
+  const handleGroupRename = (gid: string) => {
+    const g = groups.find((x) => x.id === gid);
     if (!g) return;
-    setEditingGroupId(groupId);
-    setEditName(g.name);
+    setEditingGroupId(gid); setEditName(g.name);
   };
-
   const commitRename = () => {
-    if (editingGroupId && editName.trim()) {
-      renameGroup(editingGroupId, editName.trim());
-    }
+    if (editingGroupId && editName.trim()) renameGroup(editingGroupId, editName.trim());
     setEditingGroupId(null);
   };
-
   const handleAdd = async () => {
     try {
       const { open } = await import("@tauri-apps/plugin-dialog");
       const dir = await open({ directory: true, multiple: false, title: t.selectFolderTitle });
-      if (dir) {
-        const name = dir.split(/[\\/]/).pop() || t.unnamed;
-        await addProject(name, dir as string);
-      }
-    } catch (e) {
-      console.error("Failed to add project:", e);
-    }
+      if (dir) { const n = dir.split(/[\\/]/).pop() || t.unnamed; await addProject(n, dir as string); }
+    } catch (e) { console.error("Failed to add project:", e); }
   };
 
+  const activeItem = activeId ? itemMap.get(activeId) : null;
+
   return (
-    <DragDropProvider
-      plugins={[pointerSensor]}
-      onDragStart={handleDragStart}
-      onDragMove={handleDragMove}
-      onDragEnd={handleDragEnd}
-    >
-      <aside
-        style={{
-          width: 260, background: "var(--color-base)", display: "flex",
-          flexDirection: "column", flexShrink: 0, borderRight: "1px solid var(--color-hover)",
-          position: "relative",
-        }}
-      >
+    <DragDropProvider plugins={[pointerSensor]} onDragStart={handleDragStart} onDragOver={handleDragOver} onDragEnd={handleDragEnd}>
+      <aside style={{ width: 260, background: "var(--color-base)", display: "flex", flexDirection: "column", flexShrink: 0, borderRight: "1px solid var(--color-hover)", position: "relative" }}>
         <div style={{ padding: "14px 16px", display: "flex", alignItems: "center", justifyContent: "space-between" }}>
           <span style={{ fontSize: 14, fontWeight: 600, color: "var(--color-text)" }}>{t.projectListTitle}</span>
           <div style={{ display: "flex", gap: 4 }}>
-            <button onClick={openCreateProject} title={t.newProject}
-              style={{ background: "none", border: "none", color: "var(--color-primary-fg)", cursor: "pointer", lineHeight: 1, display: "flex" }}>
-              <Plus size={18} strokeWidth={1.5} />
-            </button>
-            <button onClick={handleAdd} title="Browse folder"
-              style={{ background: "none", border: "none", color: "var(--color-text-muted)", cursor: "pointer", lineHeight: 1 }}>
-              <Plus size={18} strokeWidth={1.5} />
-            </button>
+            <button onClick={openCreateProject} title={t.newProject} style={{ background: "none", border: "none", color: "var(--color-primary-fg)", cursor: "pointer", lineHeight: 1, display: "flex" }}><Plus size={18} strokeWidth={1.5} /></button>
+            <button onClick={handleAdd} title="Browse folder" style={{ background: "none", border: "none", color: "var(--color-text-muted)", cursor: "pointer", lineHeight: 1 }}><Plus size={18} strokeWidth={1.5} /></button>
           </div>
         </div>
-
         <input type="text" placeholder={t.filterPlaceholder} value={filter} onChange={(e) => !isDragging && setFilter(e.target.value)}
           style={{ margin: "0 12px 8px", background: "var(--color-card)", color: "var(--color-text-secondary)", border: "none", padding: "7px 12px", fontSize: 12, outline: "none" }} />
-
-        <div style={{ flex: 1, minHeight: 0, overflowY: "auto", padding: "4px 0", position: "relative" }}>
-          <HomeItem t={t} onClick={() => selectProject(null)} />
-
-          {(isDragging ? order : filteredOrder).map((id) => {
-            const item = itemMap.get(id);
-            if (!item) return null;
-            if (item.type === "group-header") {
-              return <SortableGroupHeader key={id} id={id} item={item} dragMeta={dragMeta}
-                projects={projects} isDragging={isDragging} filterActive={filterActive}
-                savedSelected={savedSelected} editingGroupId={editingGroupId} editName={editName}
-                onEditName={setEditName} onCommitRename={commitRename}
-                onRename={handleGroupRename} onToggle={toggleGroup}
-                selectProject={selectProject} filter={filter} />;
-            }
-            return <SortableItem key={id} id={id} item={item} dragMeta={dragMeta}
-              savedSelected={savedSelected} filterActive={filterActive} selectProject={selectProject} />;
-          })}
+        <div style={{ flex: 1, minHeight: 0, overflowY: "auto", padding: "4px 0" }}>
+          <div onClick={() => selectProject(null)}
+            style={{ padding: "8px 14px", margin: "1px 4px", display: "flex", alignItems: "center", gap: 8, cursor: "pointer", opacity: 0.6 }}
+            onMouseEnter={(e) => { e.currentTarget.style.background = "var(--color-hover)"; e.currentTarget.style.opacity = "0.8"; }}
+            onMouseLeave={(e) => { e.currentTarget.style.background = "transparent"; e.currentTarget.style.opacity = "0.6"; }}>
+            <Home size={16} strokeWidth={1.5} /><span style={{ color: "var(--color-text-secondary)" }}>{t.homeItem}</span>
+          </div>
+          {visibleItems.map((item, idx) => (
+            <SortableTreeItem key={item.id} id={item.id} index={idx} item={item} activeId={activeId}
+              dragZone={dragZone} ontoGroupId={ontoGroupId} savedSelected={savedSelected} filterActive={!!filter && !isDragging}
+              editingGroupId={editingGroupId} editName={editName} setEditName={setEditName} commitRename={commitRename}
+              handleGroupRename={handleGroupRename} toggleGroup={toggleGroup} selectProject={selectProject}
+              projects={projects} filter={filter} t={t} />
+          ))}
         </div>
-
         <div style={{ padding: 8, borderTop: "1px solid var(--color-hover)", fontSize: 10, color: "var(--color-text-muted)", textAlign: "center" }}>
           {isDragging ? "Drop to reorder / group" : t.projectCount(projects.length)}
         </div>
       </aside>
-
       <DragOverlay dropAnimation={null}>
-        {dragMeta.activeId && (
-          <OverlayCard id={dragMeta.activeId} itemMap={itemMap} dragMeta={dragMeta} groups={groups} projects={projects} />
-        )}
+        {activeItem && <OverlayCard item={activeItem} ontoGroupId={ontoGroupId} dragZone={dragZone} groups={groups} projects={projects} />}
       </DragOverlay>
     </DragDropProvider>
   );
 }
 
-/* ────── Sub-components ────── */
+/* ─── SortableTreeItem ─── */
 
-function HomeItem({ t, onClick }: { t: any; onClick: () => void }) {
-  return (
-    <div onClick={onClick}
-      style={{ padding: "8px 14px", margin: "1px 4px", display: "flex", alignItems: "center", gap: 8, cursor: "pointer", opacity: 0.6 }}
-      onMouseEnter={(e) => { e.currentTarget.style.background = "var(--color-hover)"; e.currentTarget.style.opacity = "0.8"; }}
-      onMouseLeave={(e) => { e.currentTarget.style.background = "transparent"; e.currentTarget.style.opacity = "0.6"; }}>
-      <Home size={16} strokeWidth={1.5} />
-      <span style={{ color: "var(--color-text-secondary)" }}>{t.homeItem}</span>
-    </div>
-  );
+function SortableTreeItem({ id, index, item, activeId, dragZone, ontoGroupId, savedSelected, filterActive,
+  editingGroupId, editName, setEditName, commitRename, handleGroupRename, toggleGroup, selectProject, projects, filter }: any) {
+  const { ref, handleRef, isDragSource } = useSortable({ id, index, disabled: filterActive });
+  const isSource = activeId === id;
+
+  const getFlatIndex = (pid: string) => {
+    return (projects as Project[]).findIndex((p: Project) => p.id === pid);
+  };
+
+  if (item.type === "group-header") {
+    const groupProjs = (projects as Project[]).filter((p: Project) => p.group_id === item.groupId);
+    const vc = (filter as string).length > 0 ? groupProjs.filter((p: Project) => p.name.toLowerCase().includes((filter as string).toLowerCase())).length : groupProjs.length;
+    const isOnto = ontoGroupId === item.groupId && dragZone === "onto" && activeId !== id;
+
+    return (
+      <div key={id}>
+        <div ref={ref} style={{ position: "relative", margin: "1px 4px", display: "flex", alignItems: "center", background: isOnto ? "var(--color-card)" : "transparent", opacity: isSource ? 0.4 : 1, borderLeft: item.groupColor ? `3px solid ${item.groupColor}` : "3px solid transparent" }}>
+          <span ref={handleRef} style={{ cursor: "grab", padding: "6px 4px", display: "flex", color: "var(--color-text-muted)", opacity: 0.6 }}><GripVertical size={14} strokeWidth={1.5} /></span>
+          <div onClick={(e: any) => { e.stopPropagation(); if (!isDragSource) toggleGroup(item.groupId!, !item.groupCollapsed); }}
+            onDoubleClick={(e: any) => { e.stopPropagation(); handleGroupRename(item.groupId!); }}
+            style={{ flex: 1, display: "flex", alignItems: "center", padding: "6px 8px 6px 0", cursor: "pointer", gap: 4, minWidth: 0 }}
+            onMouseEnter={(e: any) => { e.currentTarget.style.opacity = "1"; }}
+            onMouseLeave={(e: any) => { e.currentTarget.style.opacity = "0.9"; }}>
+            {item.groupCollapsed ? <ChevronRight size={14} strokeWidth={1.5} /> : <ChevronDown size={14} strokeWidth={1.5} />}
+            {editingGroupId === item.id ? (
+              <input autoFocus className="group-header-rename-input" value={editName} onChange={(e: any) => setEditName(e.target.value)}
+                onBlur={commitRename} onKeyDown={(e: any) => { if (e.key === "Enter") commitRename(); if (e.key === "Escape") setEditName(""); }}
+                onClick={(e: any) => e.stopPropagation()} style={{ background: "var(--color-hover)", color: "var(--color-text)", border: "none", padding: "2px 6px", fontSize: 13, fontWeight: 600, outline: "none", fontFamily: "inherit", width: 120 }} />
+            ) : (
+              <span style={{ fontWeight: 600, fontSize: 13, color: "var(--color-text)", overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>{item.groupName}</span>
+            )}
+          </div>
+          <span style={{ fontSize: 10, color: "var(--color-text-muted)", marginRight: 8 }}>{item.groupCollapsed ? `(${vc})` : `${vc}`}</span>
+        </div>
+        {!item.groupCollapsed && groupProjs.map((p: Project) => (
+          <ProjectItem key={p.id} id={p.id} index={getFlatIndex(p.id)} project={p} isGrouped groupColor={item.groupColor || "#586878"}
+            activeId={activeId} dragZone={dragZone} ontoGroupId={ontoGroupId}
+            savedSelected={savedSelected} filterActive={filterActive} selectProject={selectProject} />
+        ))}
+      </div>
+    );
+  }
+
+  return <ProjectItem id={id} index={index} project={item.project!} isGrouped={false}
+    activeId={activeId} dragZone={dragZone} ontoGroupId={ontoGroupId}
+    savedSelected={savedSelected} filterActive={filterActive} selectProject={selectProject} />;
 }
 
-function SortableItem({ id, item, dragMeta, savedSelected, filterActive, selectProject }: {
-  id: string; item: TreeItem; dragMeta: DragMeta;
-  savedSelected: string | null; filterActive: boolean; selectProject: (id: string | null) => void;
-}) {
-  const { isDragSource, handleRef, ref } = useDraggable({ id, disabled: filterActive });
-  const isOnto = dragMeta.activeId !== null && dragMeta.activeId !== id && dragMeta.targetId === id && dragMeta.zone === "onto";
-  const isSource = dragMeta.activeId === id;
-  const p = item.project!;
+function ProjectItem({ id, index, project, isGrouped, groupColor, activeId, dragZone, ontoGroupId, savedSelected, filterActive, selectProject }: any) {
+  if (isGrouped && index === undefined) index = 0;
+  const { ref, handleRef, isDragSource } = useSortable({ id, index: index ?? 0, disabled: filterActive });
+  const isSource = activeId === id;
+  const isOnto = ontoGroupId === project.group_id && dragZone === "onto" && activeId !== id;
+  const sel = savedSelected === id;
 
   return (
-    <div key={id}
-      ref={(el) => { ref(el); if (el) handleRef(el); }}
-      onClick={() => { if (!isDragSource) selectProject(p.id); }}
+    <div ref={ref}
       style={{
-        padding: "8px 14px", margin: "1px 4px",
-        display: "flex", alignItems: "center", gap: 8,
-        cursor: filterActive ? "pointer" : "grab",
-        background: savedSelected === p.id ? "var(--color-hover)" : (isOnto ? "var(--color-card)" : "transparent"),
-        borderLeft: savedSelected === p.id ? "2px solid var(--color-primary)" : "2px solid transparent",
+        padding: isGrouped ? "7px 14px 7px 18px" : "8px 14px", margin: "1px 4px",
+        display: "flex", alignItems: "center", gap: 4,
+        cursor: filterActive ? "pointer" : "default",
+        background: sel ? "var(--color-hover)" : (isOnto ? "var(--color-card)" : "transparent"),
+        borderLeft: sel ? "2px solid var(--color-primary)" : (isGrouped ? `3px solid ${groupColor || "transparent"}` : "2px solid transparent"),
         opacity: isSource ? 0 : 1,
-        boxShadow: isOnto ? "inset 0 0 0 2px var(--color-primary)" : "none",
+        boxShadow: isOnto ? `inset 0 0 0 2px ${isGrouped ? groupColor : "var(--color-primary)"}` : "none",
         userSelect: "none",
       }}
-      onMouseEnter={(e) => { if (!isDragSource && savedSelected !== p.id) e.currentTarget.style.background = "var(--color-card)"; }}
-      onMouseLeave={(e) => { if (!isDragSource && savedSelected !== p.id) e.currentTarget.style.background = "transparent"; }}
+      onMouseEnter={(e: any) => { if (savedSelected !== id) e.currentTarget.style.background = "var(--color-card)"; }}
+      onMouseLeave={(e: any) => { if (savedSelected !== id) e.currentTarget.style.background = "transparent"; }}
     >
-      <Folder size={14} strokeWidth={1.5} />
-      <div style={{ flex: 1, minWidth: 0 }}>
-        <div style={{ color: "var(--color-text)", overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>
-          {p.name}
+      <span ref={handleRef} style={{ cursor: "grab", display: "flex", color: "var(--color-text-muted)", opacity: 0.5 }}><GripVertical size={14} strokeWidth={1.5} /></span>
+      <div onClick={() => { if (!isDragSource) selectProject(id); }} style={{ flex: 1, minWidth: 0, display: "flex", alignItems: "center", gap: 6, cursor: "pointer" }}>
+        <Folder size={14} strokeWidth={1.5} />
+        <div style={{ flex: 1, minWidth: 0 }}>
+          <div style={{ color: "var(--color-text)", overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap", fontSize: 13 }}>{project.name}</div>
+          <div style={{ fontSize: 10, color: "var(--color-text-muted)", overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>{project.path}</div>
         </div>
-        <div style={{ fontSize: 10, color: "var(--color-text-muted)", overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>
-          {p.path}
-        </div>
+        {project.starred && <Star size={12} strokeWidth={1.5} color="var(--color-warning)" />}
       </div>
-      {p.starred && <Star size={12} strokeWidth={1.5} color="var(--color-warning)" />}
     </div>
   );
 }
 
-function SortableGroupHeader({ id, item, dragMeta, projects, isDragging, filterActive, savedSelected,
-  editingGroupId, editName, onEditName, onCommitRename, onRename, onToggle, selectProject, filter }: any) {
-  const { handleRef, ref } = useDraggable({ id, disabled: filterActive });
-  const isOnto = dragMeta.activeId !== null && dragMeta.activeId !== id && dragMeta.ontoGroupId === item.groupId && dragMeta.zone === "onto";
-  const isSource = dragMeta.activeId === id;
-  const groupProjs = projects.filter((p: Project) => p.group_id === item.groupId);
-  const visibleCount = filter.length > 0
-    ? groupProjs.filter((p: Project) => p.name.toLowerCase().includes(filter.toLowerCase())).length
-    : groupProjs.length;
-
-  return (
-    <div key={id} ref={(el) => { ref(el); if (el) handleRef(el); }}>
-      <div
-        onClick={(e: any) => { e.stopPropagation(); onToggle(item.groupId!, !item.groupCollapsed); }}
-        onDoubleClick={(e: any) => { e.stopPropagation(); onRename(item.groupId!); }}
-        className="group-header"
-        style={{
-          opacity: isSource ? 0.4 : 1,
-          background: isOnto ? "var(--color-card)" : "transparent",
-          borderLeft: item.groupColor ? `3px solid ${item.groupColor}` : "3px solid transparent",
-          cursor: filterActive ? "pointer" : "grab",
-        }}
-        onMouseEnter={(e: any) => { if (!isDragging) e.currentTarget.style.background = "var(--color-card)"; }}
-        onMouseLeave={(e: any) => { if (!isDragging) e.currentTarget.style.background = isOnto ? "var(--color-card)" : "transparent"; }}
-      >
-        <span style={{ display: "flex", alignItems: "center", marginRight: 6 }}>
-          {item.groupCollapsed ? <ChevronRight size={14} strokeWidth={1.5} /> : <ChevronDown size={14} strokeWidth={1.5} />}
-        </span>
-        <div style={{ display: "flex", alignItems: "center", gap: 4, flex: 1, minWidth: 0 }}>
-          {editingGroupId === item.id ? (
-            <input autoFocus className="group-header-rename-input" value={editName}
-              onChange={(e: any) => onEditName(e.target.value)}
-              onBlur={onCommitRename}
-              onKeyDown={(e: any) => { if (e.key === "Enter") onCommitRename(); if (e.key === "Escape") onEditName(""); }}
-              onClick={(e: any) => e.stopPropagation()} />
-          ) : (
-            <span style={{ fontWeight: 600, fontSize: 13, color: "var(--color-text)", overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>
-              {item.groupName}
-            </span>
-          )}
-        </div>
-        <span style={{ fontSize: 10, color: "var(--color-text-muted)", marginRight: 4 }}>
-          {item.groupCollapsed ? `(${visibleCount})` : `${visibleCount}`}
-        </span>
-      </div>
-
-      {!item.groupCollapsed && groupProjs.map((p: Project) => (
-        <GroupedProjectItem key={p.id} project={p} dragMeta={dragMeta} savedSelected={savedSelected}
-          filterActive={filterActive} groupColor={item.groupColor || "transparent"}
-          isDragging={isDragging} selectProject={selectProject} />
-      ))}
-    </div>
-  );
-}
-
-function OverlayCard({ id, itemMap, dragMeta, groups, projects }: {
-  id: string; itemMap: Map<string, TreeItem>; dragMeta: DragMeta;
-  groups: any[]; projects: any[];
-}) {
-  const item = itemMap.get(id);
+function OverlayCard({ item, ontoGroupId, dragZone, groups, projects }: any) {
   if (!item) return null;
-
-  const previewColor = dragMeta.ontoGroupId
-    ? (groups.find((g: any) => g.id === dragMeta.ontoGroupId)?.color || "var(--color-primary)")
-    : (dragMeta.zone === "onto" && dragMeta.activeType === "project" ? "var(--color-primary)" : undefined);
+  const previewColor = ontoGroupId ? (groups.find((g: any) => g.id === ontoGroupId)?.color || "var(--color-primary)") : (dragZone === "onto" ? "var(--color-primary)" : undefined);
 
   return (
-    <div style={{
-      width: 220, background: "var(--color-panel)", padding: "8px 12px",
-      display: "flex", alignItems: "center", gap: 8, fontSize: 13, color: "var(--color-text)",
-      boxShadow: "0 4px 16px rgba(0,0,0,0.4)",
-    }}>
+    <div style={{ width: 220, background: "var(--color-panel)", padding: "8px 12px", display: "flex", alignItems: "center", gap: 8, fontSize: 13, color: "var(--color-text)", boxShadow: "0 4px 16px rgba(0,0,0,0.4)" }}>
       {item.type === "group-header" ? (
         <>
           <div style={{ width: 3, height: 20, background: item.groupColor, flexShrink: 0 }} />
           <ChevronDown size={14} strokeWidth={1.5} />
           <span style={{ fontWeight: 600 }}>{item.groupName}</span>
-          <span style={{ fontSize: 10, color: "var(--color-text-muted)" }}>
-            {projects.filter((x: any) => x.group_id === item.groupId).length}
-          </span>
+          <span style={{ fontSize: 10, color: "var(--color-text-muted)" }}>{projects.filter((x: any) => x.group_id === item.groupId).length}</span>
         </>
       ) : (
         <>
-          {previewColor
-            ? <div style={{ width: 3, height: 20, background: previewColor, flexShrink: 0 }} />
-            : <Folder size={14} strokeWidth={1.5} />
-          }
-          <span style={{ overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap", flex: 1 }}>
-            {item.project?.name}
-          </span>
+          {previewColor ? <div style={{ width: 3, height: 20, background: previewColor, flexShrink: 0 }} /> : <Folder size={14} strokeWidth={1.5} />}
+          <span style={{ overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap", flex: 1 }}>{item.project?.name}</span>
           {item.project?.starred && <Star size={12} strokeWidth={1.5} color="var(--color-warning)" />}
         </>
       )}
-    </div>
-  );
-}
-
-function GroupedProjectItem({ project, dragMeta, savedSelected, filterActive, groupColor, isDragging, selectProject }: {
-  project: Project; dragMeta: DragMeta; savedSelected: string | null;
-  filterActive: boolean; groupColor: string; isDragging: boolean;
-  selectProject: (id: string | null) => void;
-}) {
-  const { isDragSource, handleRef, ref } = useDraggable({ id: project.id, disabled: filterActive });
-  const ispOnto = dragMeta.activeId !== null && dragMeta.activeId !== project.id && dragMeta.zone === "onto" && dragMeta.ontoGroupId === project.group_id;
-  const ispSource = dragMeta.activeId === project.id;
-  return (
-    <div
-      ref={(el) => { ref(el); if (el) handleRef(el); }}
-      onClick={() => { if (!isDragSource) selectProject(project.id); }}
-      className="group-item"
-      style={{
-        opacity: ispSource ? 0 : 1,
-        background: savedSelected === project.id ? "var(--color-hover)" : (ispOnto ? "var(--color-card)" : "transparent"),
-        borderLeft: savedSelected === project.id ? "2px solid var(--color-primary)" : `3px solid ${groupColor}`,
-        cursor: filterActive ? "pointer" : "grab",
-        boxShadow: ispOnto ? `inset 0 0 0 2px ${groupColor}` : "none",
-        padding: "7px 14px 7px 18px",
-        margin: "1px 4px",
-        display: "flex",
-        alignItems: "center",
-        userSelect: "none",
-      }}
-      onMouseEnter={(e: any) => { if (!isDragging && savedSelected !== project.id) e.currentTarget.style.background = "var(--color-card)"; }}
-      onMouseLeave={(e: any) => { if (!isDragging && savedSelected !== project.id) e.currentTarget.style.background = "transparent"; }}
-    >
-      <Folder size={14} strokeWidth={1.5} />
-      <div style={{ flex: 1, minWidth: 0, marginLeft: 8 }}>
-        <div style={{ color: "var(--color-text)", overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap", fontSize: 13 }}>
-          {project.name}
-        </div>
-        <div style={{ fontSize: 10, color: "var(--color-text-muted)", overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>
-          {project.path}
-        </div>
-      </div>
-      {project.starred && <Star size={12} strokeWidth={1.5} color="var(--color-warning)" />}
     </div>
   );
 }
