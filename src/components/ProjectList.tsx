@@ -1,4 +1,4 @@
-import { useState, useEffect, useMemo } from "react";
+import { useState, useEffect, useMemo, useRef } from "react";
 import { useAppStore, buildTree, nextGroupColor } from "../lib/store";
 import type { Project } from "../lib/tauri";
 import { useT } from "../lib/i18n";
@@ -43,6 +43,8 @@ export function ProjectList() {
   const [activeId, setActiveId] = useState<string | null>(null);
   const [dragZone, setDragZone] = useState<Zone>(null);
   const [ontoGroupId, setOntoGroupId] = useState<string | null>(null);
+  const dragZoneRef = useRef<Zone>(null);
+  const ontoGroupIdRef = useRef<string | null>(null);
   const isDragging = activeId !== null;
 
   const flatTree = useMemo(() => buildTree(projects, groups), [projects, groups]);
@@ -62,17 +64,12 @@ export function ProjectList() {
         result.push(item);
       }
     }
-    // Remove group-headers with no visible children
+    // Remove group-headers with no visible children (unless collapsed)
     return result.filter((item, idx, arr) => {
       if (item.type !== "group-header") return true;
-      const next = arr.slice(idx + 1);
-      const hasChild = next.some((n) => n.type === "project" && n.project?.group_id === item.groupId);
-      return hasChild || arr.indexOf(arr.find((n) => n.id === item.id)!) === idx;
-    }).filter((item, idx, arr) => {
-      if (item.type !== "group-header") return true;
+      if (item.groupCollapsed) return true;
       const nextItems = arr.slice(idx + 1);
-      const hasVisibleChildren = nextItems.some((n) => n.type === "project" && n.project?.group_id === item.groupId);
-      return hasVisibleChildren;
+      return nextItems.some((n) => n.type === "project" && n.project?.group_id === item.groupId);
     });
   }, [flatTree, filter]);
 
@@ -108,15 +105,19 @@ export function ProjectList() {
     if (!targetEl) return;
     const rect = targetEl.getBoundingClientRect();
     const zone = getZone(e.operation.position.y, rect);
+    dragZoneRef.current = zone;
+    ontoGroupIdRef.current = zone === "onto" ? getTargetGroupId(target.id) : null;
     setDragZone(zone);
-    setOntoGroupId(zone === "onto" ? getTargetGroupId(target.id) : null);
+    setOntoGroupId(ontoGroupIdRef.current);
   };
 
   const handleDragEnd = (e: any) => {
     const source = e.operation?.source;
     const target = e.operation?.target;
-    const zone = dragZone;
+    const zone = dragZoneRef.current;
     setActiveId(null); setDragZone(null); setOntoGroupId(null);
+    dragZoneRef.current = null;
+    ontoGroupIdRef.current = null;
 
     if (!source || !target || !zone) return;
     const sourceItem = itemMap.get(source.id);
