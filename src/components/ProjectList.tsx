@@ -145,28 +145,43 @@ export function ProjectList() {
       return;
     }
 
-    if (isSortable(source) && source.initialIndex !== source.index) {
-      const reordered = arrayMove(displayItems, source.initialIndex, source.index);
+    if (!isSortable(source) || source.initialIndex === source.index) return;
 
-      const fullProjectIds: string[] = [];
-      const mapped = new Set<string>();
-      for (const it of reordered) {
-        if (it.type === "group-header" && it.groupId) {
-          const gprojs = projects.filter((p) => p.group_id === it.groupId).map((p) => p.id);
-          for (const pid of gprojs) { if (!mapped.has(pid)) { fullProjectIds.push(pid); mapped.add(pid); } }
-        } else if (it.type === "project" && !mapped.has(it.id)) {
-          fullProjectIds.push(it.id);
-          mapped.add(it.id);
-        }
-      }
-      for (const p of projects) { if (!mapped.has(p.id)) { fullProjectIds.push(p.id); mapped.add(p.id); } }
+    let reordered = arrayMove(displayItems, source.initialIndex, source.index);
 
-      const sourceGroupId = sourceItem.project?.group_id;
-      if (zone !== "onto" && sourceGroupId) {
-        batchMoveAndReorder([{ projectId: source.id as string, groupId: null }], fullProjectIds);
-      } else {
-        reorderAll(fullProjectIds);
+    // If dragging a group header, move all its projects along with it
+    if (sourceItem.type === "group-header") {
+      const gid = sourceItem.groupId!;
+      const groupProjIds = new Set(projects.filter((p) => p.group_id === gid).map((p) => p.id));
+      // Remove group projects
+      const withoutProjects = reordered.filter((it) => it.type !== "project" || !groupProjIds.has(it.id));
+      const headerIdx = withoutProjects.findIndex((it) => it.id === (source.id as string));
+      const visibleGroupItems = reordered.filter((it) => it.type === "project" && groupProjIds.has(it.id));
+      withoutProjects.splice(headerIdx + 1, 0, ...visibleGroupItems);
+      reordered = withoutProjects;
+    }
+
+    // Reconstruct project order preserving individual positions
+    const fullProjectIds: string[] = [];
+    const mapped = new Set<string>();
+    for (const it of reordered) {
+      if (it.type === "project" && !mapped.has(it.id)) {
+        fullProjectIds.push(it.id);
+        mapped.add(it.id);
+      } else if (it.type === "group-header" && it.groupCollapsed && it.groupId) {
+        // Collapsed group: projects not in reordered, add them here
+        const gprojs = projects.filter((p) => p.group_id === it.groupId).map((p) => p.id);
+        for (const pid of gprojs) { if (!mapped.has(pid)) { fullProjectIds.push(pid); mapped.add(pid); } }
       }
+    }
+    for (const p of projects) { if (!mapped.has(p.id)) { fullProjectIds.push(p.id); mapped.add(p.id); } }
+
+    const sourceGroupId = sourceItem.type === "project" ? sourceItem.project?.group_id : null;
+    const sourceIsLeavingGroup = !!sourceGroupId && zone !== "onto";
+    if (sourceIsLeavingGroup) {
+      batchMoveAndReorder([{ projectId: source.id as string, groupId: null }], fullProjectIds);
+    } else {
+      reorderAll(fullProjectIds);
     }
   };
 
