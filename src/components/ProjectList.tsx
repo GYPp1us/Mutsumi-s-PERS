@@ -124,6 +124,7 @@ export function ProjectList() {
     if (!sourceItem) return;
 
     if (sourceItem.type === "project" && zone === "onto") {
+      if (source.id === target.id) return; // self-drop, no action
       const projectIds = projects.map((p) => p.id);
       const tgid = getTargetGroupId(target.id as string);
       if (tgid) {
@@ -145,7 +146,10 @@ export function ProjectList() {
       return;
     }
 
-    if (!isSortable(source) || source.initialIndex === source.index) return;
+    if (!isSortable(source)) return;
+    const needsReorder = source.initialIndex !== source.index;
+    const srcGroupId = sourceItem.type === "project" ? sourceItem.project?.group_id : null;
+    if (!needsReorder && (!srcGroupId || zone === "onto")) return;
 
     let reordered = arrayMove(displayItems, source.initialIndex, source.index);
 
@@ -184,8 +188,7 @@ export function ProjectList() {
     for (const p of projects) { if (!mapped.has(p.id)) { fullProjectIds.push(p.id); mapped.add(p.id); } }
 
     const sourceGroupId = sourceProj?.group_id;
-    const leavingByZone = !!sourceGroupId && zone !== "onto";
-    const leavingByNeighbor = sourceType === "project" && sourceGroupId && zone !== "onto"
+    const leavingByNeighbor = sourceType === "project" && sourceGroupId
       ? (() => {
           const newIdx = reordered.findIndex((it) => it.id === (source.id as string));
           const prev = reordered[newIdx - 1];
@@ -195,7 +198,7 @@ export function ProjectList() {
           return prevG !== sourceGroupId && nextG !== sourceGroupId;
         })()
       : false;
-    if (leavingByZone || leavingByNeighbor) {
+    if (leavingByNeighbor) {
       batchMoveAndReorder([{ projectId: source.id as string, groupId: null }], fullProjectIds);
     } else {
       reorderAll(fullProjectIds);
