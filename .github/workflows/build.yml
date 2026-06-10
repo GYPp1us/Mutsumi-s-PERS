@@ -42,6 +42,7 @@ jobs:
         with:
           includeUpdaterJson: true
           tagName: ${{ github.ref_name }}
+          releaseName: ${{ github.ref_name }}
           releaseBody: |
             See [CHANGELOG.md](./CHANGELOG.md) for details.
         env:
