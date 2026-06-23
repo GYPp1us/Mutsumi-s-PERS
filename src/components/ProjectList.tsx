@@ -7,9 +7,8 @@ import { DragDropProvider, DragOverlay } from "@dnd-kit/react";
 import { useSortable, isSortable } from "@dnd-kit/react/sortable";
 import { PointerSensor, PointerActivationConstraints } from "@dnd-kit/dom";
 
-type Zone = "above" | "onto" | "below" | null;
-const ZONE_TOP = 0.30;
-const ZONE_BOTTOM = 0.70;
+type SwapResult = "before" | "onto" | "after" | null;
+const SWAP_THRESHOLD = 0.25;
 
 function arrayMove<T>(arr: T[], from: number, to: number): T[] {
   const copy = [...arr];
@@ -41,47 +40,53 @@ export function ProjectList() {
   const [editingGroupId, setEditingGroupId] = useState<string | null>(null);
   const [editName, setEditName] = useState("");
   const [activeId, setActiveId] = useState<string | null>(null);
-  const [dragZone, setDragZone] = useState<Zone>(null);
+  const [dragZone, setDragZone] = useState<SwapResult>(null);
   const [ontoGroupId, setOntoGroupId] = useState<string | null>(null);
-  const dragZoneRef = useRef<Zone>(null);
-  const ontoGroupIdRef = useRef<string | null>(null);
+  const dragStateRef = useRef<{ zone: SwapResult; ontoGroupId: string | null }>({ zone: null, ontoGroupId: null });
   const isDragging = activeId !== null;
 
   const flatTree = useMemo(() => buildTree(projects, groups), [projects, groups]);
+  const itemMap = useMemo(() => new Map(flatTree.map((i) => [i.id, i])), [flatTree]);
 
-  const displayItems = useMemo(() => {
-    const result: (typeof flatTree)[number][] = [];
+  const itemVisible = useMemo(() => {
+    const map = new Map<string, boolean>();
     let skipGroup: string | null = null;
     for (const item of flatTree) {
       if (item.type === "group-header") {
-        result.push(item);
+        map.set(item.id, true);
         skipGroup = item.groupCollapsed ? item.groupId! : null;
-      } else if (skipGroup && item.project?.group_id === skipGroup) {
-        // collapsed group: skip
-      } else if (filter && !item.project?.name.toLowerCase().includes(filter.toLowerCase())) {
-        // filtered out
       } else {
-        result.push(item);
+        const inCollapsed = !!skipGroup && item.project?.group_id === skipGroup;
+        const filteredOut = !!filter && !item.project?.name.toLowerCase().includes(filter.toLowerCase());
+        map.set(item.id, !inCollapsed && !filteredOut);
       }
     }
-    // Remove group-headers with no visible children (unless collapsed)
-    return result.filter((item, idx, arr) => {
-      if (item.type !== "group-header") return true;
-      if (item.groupCollapsed) return true;
-      const nextItems = arr.slice(idx + 1);
-      return nextItems.some((n) => n.type === "project" && n.project?.group_id === item.groupId);
-    });
+    const emptyGroups = new Set<string>();
+    for (const item of flatTree) {
+      if (item.type === "group-header" && !item.groupCollapsed && item.groupId) {
+        emptyGroups.add(item.groupId);
+      }
+    }
+    for (const item of flatTree) {
+      if (item.type === "project" && item.project?.group_id && map.get(item.id)) {
+        emptyGroups.delete(item.project.group_id);
+      }
+    }
+    for (const gid of emptyGroups) {
+      map.set(gid, false);
+    }
+    return map;
   }, [flatTree, filter]);
-
-  const itemMap = useMemo(() => new Map(flatTree.map((i) => [i.id, i])), [flatTree]);
 
   const pointerSensor = useMemo(() => PointerSensor.configure({
     activationConstraints: [new PointerActivationConstraints.Delay({ value: 300, tolerance: 5 })],
   }), []);
 
-  const getZone = (y: number, rect: DOMRect): Zone => {
-    const r = (y - rect.top) / rect.height;
-    if (r < ZONE_TOP) return "above"; if (r > ZONE_BOTTOM) return "below"; return "onto";
+  const getSwapDirection = (y: number, rect: DOMRect): SwapResult => {
+    const ratio = (y - rect.top) / rect.height;
+    if (ratio < SWAP_THRESHOLD) return "before";
+    if (ratio > 1 - SWAP_THRESHOLD) return "after";
+    return "onto";
   };
 
   const getTargetGroupId = (id: string): string | null => {
@@ -92,10 +97,18 @@ export function ProjectList() {
     return null;
   };
 
+  const findEnclosingGroup = (items: typeof flatTree, fromIndex: number): string | null => {
+    for (let i = fromIndex - 1; i >= 0; i--) {
+      if (items[i].type === "group-header") return items[i].groupId!;
+    }
+    return null;
+  };
+
   const handleDragStart = (e: any) => {
     setActiveId(e.operation?.source?.id || "");
     setDragZone(null);
     setOntoGroupId(null);
+    dragStateRef.current = { zone: null, ontoGroupId: null };
   };
 
   const handleDragOver = (e: any) => {
@@ -104,76 +117,87 @@ export function ProjectList() {
     const targetEl = (target as any)?.element as HTMLElement;
     if (!targetEl) return;
     const rect = targetEl.getBoundingClientRect();
-    const zone = getZone(e.operation.position.y, rect);
-    dragZoneRef.current = zone;
-    ontoGroupIdRef.current = zone === "onto" ? getTargetGroupId(target.id) : null;
+    const zone = getSwapDirection(e.operation.position.y, rect);
+    const tgid = zone === "onto" ? getTargetGroupId(target.id) : null;
+    dragStateRef.current = { zone, ontoGroupId: tgid };
     setDragZone(zone);
-    setOntoGroupId(ontoGroupIdRef.current);
+    setOntoGroupId(tgid);
   };
 
   const handleDragEnd = (e: any) => {
     const source = e.operation?.source;
     const target = e.operation?.target;
-    const zone = dragZoneRef.current;
+    const { zone } = dragStateRef.current;
     setActiveId(null); setDragZone(null); setOntoGroupId(null);
-    dragZoneRef.current = null;
-    ontoGroupIdRef.current = null;
+    dragStateRef.current = { zone: null, ontoGroupId: null };
 
     if (!source || !target || !zone) return;
     const sourceItem = itemMap.get(source.id);
     if (!sourceItem) return;
 
     if (sourceItem.type === "project" && zone === "onto") {
-      if (source.id === target.id) return; // self-drop, no action
+      if (source.id === target.id) return;
       const projectIds = projects.map((p) => p.id);
-      const tgid = getTargetGroupId(target.id as string);
-      if (tgid) {
+      const tgGid = getTargetGroupId(target.id as string);
+
+      if (tgGid) {
         const sp = projects.find((p) => p.id === source.id);
-        if (sp?.group_id === tgid) return;
+        if (sp?.group_id === tgGid) return;
+        const targetGroup = groups.find((g) => g.id === tgGid);
+        if (targetGroup?.collapsed) {
+          toggleGroup(tgGid, false);
+        }
         const no = [...projectIds];
         const si = no.indexOf(source.id as string), ti = no.indexOf(target.id as string);
         if (si !== -1 && ti !== -1) { no.splice(si, 1); no.splice(ti, 0, source.id as string); }
-        batchMoveAndReorder([{ projectId: source.id as string, groupId: tgid }], no);
+        batchMoveAndReorder([{ projectId: source.id as string, groupId: tgGid }], no);
       } else {
         const color = nextGroupColor(groups);
         createGroup(t.groupDefaultName(groups.length + 1), color).then((ngid) => {
           const no = [...projectIds];
           const si = no.indexOf(source.id as string), ti = no.indexOf(target.id as string);
           if (si !== -1 && ti !== -1) { no.splice(si, 1); no.splice(ti, 0, source.id as string); }
-          batchMoveAndReorder([{ projectId: source.id as string, groupId: ngid }, { projectId: target.id as string, groupId: ngid }], no);
+          batchMoveAndReorder([
+            { projectId: source.id as string, groupId: ngid },
+            { projectId: target.id as string, groupId: ngid }
+          ], no);
         }).catch(() => {});
       }
       return;
     }
 
     if (!isSortable(source)) return;
-    const needsReorder = source.initialIndex !== source.index;
-    const srcGroupId = sourceItem.type === "project" ? sourceItem.project?.group_id : null;
-    if (!needsReorder && (!srcGroupId || zone === "onto")) return;
 
-    let reordered = arrayMove(displayItems, source.initialIndex, source.index);
+    if (source.initialIndex === source.index) {
+      if (sourceItem.type === "project" && sourceItem.project?.group_id) {
+        const enclosing = findEnclosingGroup(flatTree, source.index);
+        if (enclosing !== sourceItem.project.group_id) {
+          const allProjectIds = flatTree.filter((it) => it.type === "project").map((it) => it.id);
+          batchMoveAndReorder([{ projectId: source.id as string, groupId: null }], allProjectIds);
+        }
+      }
+      return;
+    }
 
-    // Find source item from displayItems directly (more reliable)
-    const sourceDisplayItem = reordered.find((it) => it.id === (source.id as string)) || reordered[source.index];
+    let reordered = arrayMove(flatTree, source.initialIndex, source.index);
+    const sourceDisplayItem = reordered[source.index];
     const sourceType = sourceDisplayItem?.type || sourceItem.type;
     const sourceProj = sourceDisplayItem?.project || sourceItem.project;
 
-    // If dragging a group header, move all its projects along with it
     if (sourceType === "group-header") {
       const gid = sourceDisplayItem?.groupId || sourceItem.groupId;
       if (gid) {
         const groupProjIds = new Set(projects.filter((p) => p.group_id === gid).map((p) => p.id));
         const withoutProjects = reordered.filter((it) => it.type !== "project" || !groupProjIds.has(it.id));
         const headerIdx = withoutProjects.findIndex((it) => it.id === (source.id as string));
-        const visibleGroupItems = reordered.filter((it) => it.type === "project" && groupProjIds.has(it.id));
+        const groupProjects = reordered.filter((it) => it.type === "project" && groupProjIds.has(it.id));
         if (headerIdx !== -1) {
-          withoutProjects.splice(headerIdx + 1, 0, ...visibleGroupItems);
+          withoutProjects.splice(headerIdx + 1, 0, ...groupProjects);
           reordered = withoutProjects;
         }
       }
     }
 
-    // Reconstruct project order preserving individual positions
     const fullProjectIds: string[] = [];
     const mapped = new Set<string>();
     for (const it of reordered) {
@@ -188,21 +212,16 @@ export function ProjectList() {
     for (const p of projects) { if (!mapped.has(p.id)) { fullProjectIds.push(p.id); mapped.add(p.id); } }
 
     const sourceGroupId = sourceProj?.group_id;
-    const leavingByNeighbor = sourceType === "project" && sourceGroupId
-      ? (() => {
-          const newIdx = reordered.findIndex((it) => it.id === (source.id as string));
-          const prev = reordered[newIdx - 1];
-          const next = reordered[newIdx + 1];
-          const prevG = prev?.type === "project" ? prev.project?.group_id : null;
-          const nextG = next?.type === "project" ? next.project?.group_id : null;
-          return prevG !== sourceGroupId && nextG !== sourceGroupId;
-        })()
-      : false;
-    if (leavingByNeighbor) {
-      batchMoveAndReorder([{ projectId: source.id as string, groupId: null }], fullProjectIds);
-    } else {
-      reorderAll(fullProjectIds);
+    if (sourceType === "project" && sourceGroupId) {
+      const newIdx = reordered.findIndex((it) => it.id === (source.id as string));
+      const enclosing = findEnclosingGroup(reordered, newIdx);
+      if (enclosing !== sourceGroupId) {
+        batchMoveAndReorder([{ projectId: source.id as string, groupId: null }], fullProjectIds);
+        return;
+      }
     }
+
+    reorderAll(fullProjectIds);
   };
 
   const handleGroupRename = (gid: string) => {
@@ -243,8 +262,10 @@ export function ProjectList() {
             onMouseLeave={(e) => { e.currentTarget.style.background = "transparent"; e.currentTarget.style.opacity = "0.6"; }}>
             <Home size={16} strokeWidth={1.5} /><span style={{ color: "var(--color-text-secondary)" }}>{t.homeItem}</span>
           </div>
-          {displayItems.map((item: any, idx: number) => (
-            <SortableTreeItem key={item.id} id={item.id} index={idx} item={item} activeId={activeId}
+          {flatTree.map((item: any, idx: number) => (
+            <SortableTreeItem key={item.id} id={item.id} index={idx} item={item}
+              visible={itemVisible.get(item.id) !== false}
+              activeId={activeId}
               dragZone={dragZone} ontoGroupId={ontoGroupId} savedSelected={savedSelected} filterActive={!!filter && !isDragging}
               editingGroupId={editingGroupId} editName={editName} setEditName={setEditName} commitRename={commitRename}
               handleGroupRename={handleGroupRename} toggleGroup={toggleGroup} selectProject={selectProject}
@@ -264,10 +285,18 @@ export function ProjectList() {
 
 /* ─── SortableTreeItem ─── */
 
-function SortableTreeItem({ id, index, item, activeId, dragZone, ontoGroupId, savedSelected, filterActive,
+function SortableTreeItem({ id, index, item, visible, activeId, dragZone, ontoGroupId, savedSelected, filterActive,
   editingGroupId, editName, setEditName, commitRename, handleGroupRename, toggleGroup, selectProject, projects }: any) {
-  const { ref, handleRef, isDragSource } = useSortable({ id, index, disabled: filterActive });
+  const { ref, handleRef, isDragSource } = useSortable({ id, index, disabled: filterActive || !visible });
   const isSource = activeId === id;
+
+  if (!visible) {
+    return (
+      <div ref={ref} style={{ display: "none" }}>
+        <span ref={handleRef} />
+      </div>
+    );
+  }
 
   if (item.type === "group-header") {
     const vc = (projects as Project[]).filter((p: Project) => p.group_id === item.groupId).length;
