@@ -83,6 +83,13 @@ export const en = {
 
   autostart: "Launch on startup",
   silentLaunch: "Start minimized to tray",
+
+  setupWizardTitle: "Welcome to Mutsumi's PRES",
+  setupWizardDesc: "Set up a global hotkey to quickly show and hide this window.\nPress your desired key combination below, then click Save.",
+  setupWizardShortcut: "Global Shortcut",
+  setupWizardPressHint: "Click here then press a key combination...",
+  setupWizardSave: "Save & Continue",
+  setupWizardSkip: "Skip",
 };
 
 export const zh: typeof en = {
@@ -168,6 +175,13 @@ export const zh: typeof en = {
 
   autostart: "\u5F00\u673A\u81EA\u542F",
   silentLaunch: "\u9759\u9ED8\u542F\u52A8\uFF08\u4E0D\u5F39\u7A97\u53E3\uFF09",
+
+  setupWizardTitle: "\u6B22\u8FCE\u4F7F\u7528 Mutsumi's PRES",
+  setupWizardDesc: "\u8BBE\u7F6E\u4E00\u4E2A\u5168\u5C40\u5FEB\u6377\u952E\uFF0C\u7528\u4E8E\u5FEB\u901F\u663E\u793A\u548C\u9690\u85CF\u6B64\u7A97\u53E3\u3002\n\u5728\u4E0B\u65B9\u6309\u4E0B\u4F60\u5E0C\u671B\u7684\u7EC4\u5408\u952E\uFF0C\u7136\u540E\u70B9\u51FB\u4FDD\u5B58\u3002",
+  setupWizardShortcut: "\u5168\u5C40\u5FEB\u6377\u952E",
+  setupWizardPressHint: "\u70B9\u51FB\u6B64\u5904\u7136\u540E\u6309\u4E0B\u7EC4\u5408\u952E...",
+  setupWizardSave: "\u4FDD\u5B58\u5E76\u7EE7\u7EED",
+  setupWizardSkip: "\u8DF3\u8FC7",
 };
 
 export type Locale = typeof en;

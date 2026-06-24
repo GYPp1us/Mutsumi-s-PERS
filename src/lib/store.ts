@@ -17,6 +17,8 @@ interface AppStore {
   theme: "dark" | "light";
   locale: "zh" | "en";
   showSettings: boolean;
+  setupCompleted: boolean;
+  completeSetup: () => void;
   toasts: Toast[];
   loadProjects: () => Promise<void>;
   loadSettings: () => Promise<void>;
@@ -48,6 +50,8 @@ export const useAppStore = create<AppStore>((set, get) => ({
   theme: (localStorage.getItem("mutsumi-theme") as "dark" | "light") || "dark",
   locale: (localStorage.getItem("mutsumi-locale") as "zh" | "en") || "en",
   showSettings: false,
+  setupCompleted: false,
+  completeSetup: () => set({ setupCompleted: true }),
   toasts: [],
   pinned: true,
   updateAvailable: null,
