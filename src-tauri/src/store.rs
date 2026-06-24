@@ -36,6 +36,7 @@ pub struct Settings {
     pub shortcut: String,
     pub autostart: bool,
     pub silent_launch: bool,
+    pub setup_completed: bool,
     pub editors: Vec<EditorConfig>,
 }
 
@@ -71,6 +72,7 @@ impl AppStore {
                 shortcut: "Alt+Space".into(),
                 autostart: false,
                 silent_launch: false,
+                setup_completed: false,
                 editors: vec![
                     EditorConfig {
                         id: "vscode".into(),
