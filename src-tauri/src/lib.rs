@@ -7,8 +7,9 @@ use std::sync::atomic::{AtomicBool, Ordering};
 use tauri::{Emitter, Manager};
 use tauri::tray::{MouseButton, MouseButtonState, TrayIconBuilder, TrayIconEvent};
 use tauri::menu::{MenuBuilder, MenuItemBuilder};
+#[allow(unused_imports)]
 use tauri_plugin_dialog::DialogExt;
-use tauri_plugin_global_shortcut::{GlobalShortcutExt, Modifiers, Shortcut};
+use tauri_plugin_global_shortcut::{Code, GlobalShortcutExt, Modifiers, Shortcut};
 
 pub struct AppState {
     pub store: Mutex<store::AppStore>,
@@ -119,7 +120,6 @@ fn update_shortcut(
     meta: bool,
 ) -> Result<(), String> {
     use std::str::FromStr;
-    use tauri::keyboard::KeyCode;
 
     let mut modifiers = Modifiers::empty();
     if ctrl { modifiers |= Modifiers::CONTROL; }
@@ -127,7 +127,7 @@ fn update_shortcut(
     if shift { modifiers |= Modifiers::SHIFT; }
     if meta { modifiers |= Modifiers::SUPER; }
 
-    let code = KeyCode::from_str(&key_code).map_err(|_| format!("unknown key: {key_code}"))?;
+    let code = Code::from_str(&key_code).map_err(|_| format!("unknown key: {key_code}"))?;
     let shortcut = Shortcut::new(Some(modifiers), code);
 
     app.global_shortcut().register(shortcut).map_err(|e| e.to_string())?;
@@ -143,7 +143,6 @@ fn update_shortcut(
 
 fn parse_shortcut(s: &str) -> Result<Shortcut, String> {
     use std::str::FromStr;
-    use tauri::keyboard::KeyCode;
 
     let parts: Vec<&str> = s.split('+').collect();
     if parts.is_empty() {
@@ -165,21 +164,20 @@ fn parse_shortcut(s: &str) -> Result<Shortcut, String> {
                     return Err(format!("multiple keys in shortcut: {s}"));
                 }
                 let trimmed = part.trim();
-                let code = KeyCode::from_str(trimmed).or_else(|_| {
-                    // try single letter → KeyX, single digit → DigitX
+                let code = Code::from_str(trimmed).ok().or_else(|| {
                     if trimmed.len() == 1 {
                         let c = trimmed.chars().next().unwrap();
                         if c.is_ascii_alphabetic() {
-                            KeyCode::from_str(&format!("Key{}", c.to_ascii_uppercase()))
+                            Code::from_str(&format!("Key{}", c.to_ascii_uppercase())).ok()
                         } else if c.is_ascii_digit() {
-                            KeyCode::from_str(&format!("Digit{}", c))
+                            Code::from_str(&format!("Digit{}", c)).ok()
                         } else {
-                            Err("unknown key".into())
+                            None
                         }
                     } else {
-                        Err("unknown key".into())
+                        None
                     }
-                }).map_err(|_| format!("unknown key: {trimmed}"))?;
+                }).ok_or_else(|| format!("unknown key: {trimmed}"))?;
                 key = Some(code);
             }
         }
@@ -224,7 +222,7 @@ fn setup_shortcut(app: &tauri::AppHandle) -> Result<(), Box<dyn std::error::Erro
     }
 
     // Always also try Alt+Space as a sensible default
-    let alt_space = Shortcut::new(Some(Modifiers::ALT), tauri::keyboard::KeyCode::Space);
+    let alt_space = Shortcut::new(Some(Modifiers::ALT), Code::Space);
     let _ = app.global_shortcut().register(alt_space);
 
     Ok(())
@@ -272,7 +270,7 @@ pub fn run() {
                     .message(format!("System tray icon failed to load:\n{e}\n\nThe app may not appear in the system tray."))
                     .title("Startup Warning")
                     .kind(tauri_plugin_dialog::MessageDialogKind::Warning)
-                    .show();
+                    .show(|_| {});
             }
 
             // 2. Global shortcut — non-fatal
@@ -297,9 +295,10 @@ pub fn run() {
 
             // 5. Window visibility: always show on first launch, otherwise respect silent_launch
             {
-                let store = app.state::<AppState>().store.lock().ok();
-                let is_first = !store.as_ref().map(|s| s.settings.setup_completed).unwrap_or(false);
-                let silent = store.map(|s| s.settings.silent_launch).unwrap_or(false);
+                let state = app.state::<AppState>();
+                let guard = state.store.lock().ok();
+                let is_first = !guard.as_ref().map(|s| s.settings.setup_completed).unwrap_or(false);
+                let silent = guard.as_ref().map(|s| s.settings.silent_launch).unwrap_or(false);
 
                 if is_first || !silent {
                     show_window_on_active_monitor(app.handle());
