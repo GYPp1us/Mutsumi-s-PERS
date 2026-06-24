@@ -1,5 +1,15 @@
 # Changelog
 
+## [1.2.4] - 2026-06-24
+
+### Added
+- First-launch setup wizard for global shortcut configuration
+- Startup error logging to `%APPDATA%\mutsumi-s-pres\startup_error.log`
+
+### Fixed
+- Silent crash on startup when tray/shortcut/updater initialization fails
+- Global shortcut conflict no longer prevents app from launching
+
 ## [1.0.0] - 2026-05-23
 
 ### Added
