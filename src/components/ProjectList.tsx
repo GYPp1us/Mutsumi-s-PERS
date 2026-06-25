@@ -6,6 +6,9 @@ import { Home, Folder, Star, Plus, ChevronDown, ChevronRight, GripVertical } fro
 import { DragDropProvider, DragOverlay } from "@dnd-kit/react";
 import { useSortable, isSortable } from "@dnd-kit/react/sortable";
 import { PointerSensor, PointerActivationConstraints } from "@dnd-kit/dom";
+import { OptimisticSortingPlugin } from "@dnd-kit/dom/sortable";
+import { Modifier } from "@dnd-kit/abstract";
+import type { DragDropManager } from "@dnd-kit/dom";
 
 type SwapResult = "before" | "onto" | "after" | null;
 const SWAP_THRESHOLD = 0.25;
@@ -15,6 +18,15 @@ function arrayMove<T>(arr: T[], from: number, to: number): T[] {
   const [moved] = copy.splice(from, 1);
   copy.splice(to, 0, moved);
   return copy;
+}
+
+class RestrictToVertical extends Modifier<DragDropManager> {
+  constructor(manager: DragDropManager) {
+    super(manager);
+  }
+  apply({ transform }: DragDropManager["dragOperation"]) {
+    return { x: 0, y: transform.y };
+  }
 }
 
 export function ProjectList() {
@@ -41,8 +53,10 @@ export function ProjectList() {
   const [editName, setEditName] = useState("");
   const [activeId, setActiveId] = useState<string | null>(null);
   const [dragZone, setDragZone] = useState<SwapResult>(null);
+  const [dragTargetId, setDragTargetId] = useState<string | null>(null);
   const [ontoGroupId, setOntoGroupId] = useState<string | null>(null);
-  const dragStateRef = useRef<{ zone: SwapResult; ontoGroupId: string | null }>({ zone: null, ontoGroupId: null });
+  const dragStateRef = useRef<{ zone: SwapResult; ontoGroupId: string | null; targetId: string | null }>({ zone: null, ontoGroupId: null, targetId: null });
+  const sourceTopRef = useRef<number>(0);
   const isDragging = activeId !== null;
 
   const flatTree = useMemo(() => buildTree(projects, groups), [projects, groups]);
@@ -84,8 +98,12 @@ export function ProjectList() {
 
   const getSwapDirection = (y: number, rect: DOMRect): SwapResult => {
     const ratio = (y - rect.top) / rect.height;
+    const fromAbove = sourceTopRef.current <= rect.top;
+    if (fromAbove) {
+      if (ratio > 1 - SWAP_THRESHOLD) return "after";
+      return "onto";
+    }
     if (ratio < SWAP_THRESHOLD) return "before";
-    if (ratio > 1 - SWAP_THRESHOLD) return "after";
     return "onto";
   };
 
@@ -105,10 +123,14 @@ export function ProjectList() {
   };
 
   const handleDragStart = (e: any) => {
-    setActiveId(e.operation?.source?.id || "");
+    const sourceId = e.operation?.source?.id || "";
+    setActiveId(sourceId);
     setDragZone(null);
+    setDragTargetId(null);
     setOntoGroupId(null);
-    dragStateRef.current = { zone: null, ontoGroupId: null };
+    dragStateRef.current = { zone: null, ontoGroupId: null, targetId: null };
+    const sourceEl = (e.operation?.source as any)?.element as HTMLElement;
+    sourceTopRef.current = sourceEl ? sourceEl.getBoundingClientRect().top : 0;
   };
 
   const handleDragOver = (e: any) => {
@@ -119,8 +141,9 @@ export function ProjectList() {
     const rect = targetEl.getBoundingClientRect();
     const zone = getSwapDirection(e.operation.position.y, rect);
     const tgid = zone === "onto" ? getTargetGroupId(target.id) : null;
-    dragStateRef.current = { zone, ontoGroupId: tgid };
+    dragStateRef.current = { zone, ontoGroupId: tgid, targetId: target.id as string };
     setDragZone(zone);
+    setDragTargetId(target.id as string);
     setOntoGroupId(tgid);
   };
 
@@ -128,15 +151,21 @@ export function ProjectList() {
     const source = e.operation?.source;
     const target = e.operation?.target;
     const { zone } = dragStateRef.current;
-    setActiveId(null); setDragZone(null); setOntoGroupId(null);
-    dragStateRef.current = { zone: null, ontoGroupId: null };
+    setActiveId(null); setDragZone(null); setDragTargetId(null); setOntoGroupId(null);
+    dragStateRef.current = { zone: null, ontoGroupId: null, targetId: null };
 
     if (!source || !target || !zone) return;
+    if (source.id === target.id) return;
+
     const sourceItem = itemMap.get(source.id);
-    if (!sourceItem) return;
+    const targetItem = itemMap.get(target.id);
+    if (!sourceItem || !targetItem) return;
+
+    const sourceFlatIdx = flatTree.findIndex((it) => it.id === (source.id as string));
+    const targetFlatIdx = flatTree.findIndex((it) => it.id === (target.id as string));
+    if (sourceFlatIdx === -1 || targetFlatIdx === -1) return;
 
     if (sourceItem.type === "project" && zone === "onto") {
-      if (source.id === target.id) return;
       const projectIds = projects.map((p) => p.id);
       const tgGid = getTargetGroupId(target.id as string);
 
@@ -168,19 +197,13 @@ export function ProjectList() {
 
     if (!isSortable(source)) return;
 
-    if (source.initialIndex === source.index) {
-      if (sourceItem.type === "project" && sourceItem.project?.group_id) {
-        const enclosing = findEnclosingGroup(flatTree, source.index);
-        if (enclosing !== sourceItem.project.group_id) {
-          const allProjectIds = flatTree.filter((it) => it.type === "project").map((it) => it.id);
-          batchMoveAndReorder([{ projectId: source.id as string, groupId: null }], allProjectIds);
-        }
-      }
-      return;
-    }
+    const insertAt = zone === "before"
+      ? targetFlatIdx
+      : targetFlatIdx + 1;
+    const to = insertAt > sourceFlatIdx ? insertAt - 1 : insertAt;
+    let reordered = arrayMove(flatTree, sourceFlatIdx, Math.max(0, Math.min(to, flatTree.length - 1)));
 
-    let reordered = arrayMove(flatTree, source.initialIndex, source.index);
-    const sourceDisplayItem = reordered[source.index];
+    const sourceDisplayItem = reordered.find((it) => it.id === (source.id as string)) || sourceItem;
     const sourceType = sourceDisplayItem?.type || sourceItem.type;
     const sourceProj = sourceDisplayItem?.project || sourceItem.project;
 
@@ -266,7 +289,8 @@ export function ProjectList() {
             <SortableTreeItem key={item.id} id={item.id} index={idx} item={item}
               visible={itemVisible.get(item.id) !== false}
               activeId={activeId}
-              dragZone={dragZone} ontoGroupId={ontoGroupId} savedSelected={savedSelected} filterActive={!!filter && !isDragging}
+              dragZone={dragZone} dragTargetId={dragTargetId}
+              savedSelected={savedSelected} filterActive={!!filter && !isDragging}
               editingGroupId={editingGroupId} editName={editName} setEditName={setEditName} commitRename={commitRename}
               handleGroupRename={handleGroupRename} toggleGroup={toggleGroup} selectProject={selectProject}
               projects={projects} />
@@ -285,14 +309,19 @@ export function ProjectList() {
 
 /* ─── SortableTreeItem ─── */
 
-function SortableTreeItem({ id, index, item, visible, activeId, dragZone, ontoGroupId, savedSelected, filterActive,
+function SortableTreeItem({ id, index, item, visible, activeId, dragZone, dragTargetId, savedSelected, filterActive,
   editingGroupId, editName, setEditName, commitRename, handleGroupRename, toggleGroup, selectProject, projects }: any) {
-  const { ref, handleRef, isDragSource } = useSortable({ id, index, disabled: filterActive || !visible });
+  const { ref, handleRef, isDragSource } = useSortable({
+    id, index,
+    disabled: filterActive || !visible,
+    modifiers: [RestrictToVertical],
+    plugins: (defaults: any) => defaults.filter((p: any) => !(p instanceof OptimisticSortingPlugin)),
+  });
   const isSource = activeId === id;
 
   if (!visible) {
     return (
-      <div ref={ref} style={{ display: "none" }}>
+      <div ref={ref} style={{ visibility: "hidden", height: 0, overflow: "hidden", margin: 0, padding: 0, border: "none", pointerEvents: "none" }}>
         <span ref={handleRef} />
       </div>
     );
@@ -300,7 +329,7 @@ function SortableTreeItem({ id, index, item, visible, activeId, dragZone, ontoGr
 
   if (item.type === "group-header") {
     const vc = (projects as Project[]).filter((p: Project) => p.group_id === item.groupId).length;
-    const isOnto = ontoGroupId === item.groupId && dragZone === "onto" && activeId !== id;
+    const isOnto = dragZone === "onto" && dragTargetId === id;
 
     return (
       <div ref={ref}
@@ -328,7 +357,7 @@ function SortableTreeItem({ id, index, item, visible, activeId, dragZone, ontoGr
   const p: Project = item.project!;
   const isGrouped = item.isGrouped;
   const groupColor = item.groupColor;
-  const isOnto = dragZone === "onto" && activeId !== id && ((ontoGroupId && ontoGroupId === p.group_id) || (!ontoGroupId && !p.group_id));
+  const isOnto = dragZone === "onto" && dragTargetId === id;
   const sel = savedSelected === id;
 
   return (
