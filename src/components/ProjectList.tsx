@@ -319,7 +319,6 @@ function SortableTreeItem({ id, index, item, visible, activeId, dragZone, dragTa
     id, index,
     disabled: filterActive || !visible,
     modifiers: [RestrictToVertical],
-    plugins: (defaults: any) => [defaults[0]],
   });
   const isSource = activeId === id;
 
