@@ -155,10 +155,6 @@ export function ProjectList() {
     setOntoGroupId(tgid);
   };
 
-  const handleDragMove = (e: any) => {
-    updateZoneFromElement(e.operation.position.x, e.operation.position.y);
-  };
-
   const handleDragOver = (e: any) => {
     updateZoneFromElement(e.operation.position.x, e.operation.position.y);
   };
@@ -283,7 +279,7 @@ export function ProjectList() {
   const activeItem = activeId ? itemMap.get(activeId) : null;
 
   return (
-    <DragDropProvider plugins={(defaults) => [...defaults, pointerSensor]} onDragStart={handleDragStart} onDragMove={handleDragMove} onDragOver={handleDragOver} onDragEnd={handleDragEnd}>
+    <DragDropProvider plugins={(defaults) => [...defaults, pointerSensor]} onDragStart={handleDragStart} onDragOver={handleDragOver} onDragEnd={handleDragEnd}>
       <aside style={{ width: 260, background: "var(--color-base)", display: "flex", flexDirection: "column", flexShrink: 0, borderRight: "1px solid var(--color-hover)", position: "relative" }}>
         <div style={{ padding: "14px 16px", display: "flex", alignItems: "center", justifyContent: "space-between" }}>
           <span style={{ fontSize: 14, fontWeight: 600, color: "var(--color-text)" }}>{t.projectListTitle}</span>
