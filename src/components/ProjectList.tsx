@@ -405,7 +405,7 @@ function OverlayCard({ item, ontoGroupId, dragZone, groups, projects }: any) {
   if (!item) return null;
   const previewColor = ontoGroupId ? (groups.find((g: any) => g.id === ontoGroupId)?.color || "var(--color-primary)") : (dragZone === "onto" ? "var(--color-primary)" : undefined);
   return (
-    <div style={{ width: 220, background: "var(--color-panel)", padding: "8px 12px", display: "flex", alignItems: "center", gap: 8, fontSize: 13, color: "var(--color-text)", boxShadow: "0 4px 16px rgba(0,0,0,0.4)" }}>
+    <div style={{ width: 220, background: "var(--color-panel)", padding: "8px 12px", display: "flex", alignItems: "center", gap: 8, fontSize: 13, color: "var(--color-text)", boxShadow: "0 4px 16px rgba(0,0,0,0.4)", pointerEvents: "none" }}>
       {item.type === "group-header" ? (
         <>
           <div style={{ width: 3, height: 20, background: item.groupColor, flexShrink: 0 }} />
