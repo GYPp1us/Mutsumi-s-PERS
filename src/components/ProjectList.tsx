@@ -6,7 +6,6 @@ import { Home, Folder, Star, Plus, ChevronDown, ChevronRight, GripVertical } fro
 import { DragDropProvider, DragOverlay } from "@dnd-kit/react";
 import { useSortable, isSortable } from "@dnd-kit/react/sortable";
 import { PointerSensor, PointerActivationConstraints } from "@dnd-kit/dom";
-import { OptimisticSortingPlugin } from "@dnd-kit/dom/sortable";
 import { Modifier } from "@dnd-kit/abstract";
 import type { DragDropManager } from "@dnd-kit/dom";
 
@@ -320,7 +319,7 @@ function SortableTreeItem({ id, index, item, visible, activeId, dragZone, dragTa
     id, index,
     disabled: filterActive || !visible,
     modifiers: [RestrictToVertical],
-    plugins: (defaults: any) => defaults.filter((p: any) => !(p instanceof OptimisticSortingPlugin)),
+    plugins: (defaults: any) => [defaults[0]],
   });
   const isSource = activeId === id;
 
