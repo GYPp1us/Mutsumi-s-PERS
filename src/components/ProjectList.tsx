@@ -11,7 +11,7 @@ import { Modifier } from "@dnd-kit/abstract";
 import type { DragDropManager } from "@dnd-kit/dom";
 
 type SwapResult = "before" | "onto" | "after" | null;
-const SWAP_THRESHOLD = 0.25;
+const SWAP_THRESHOLD = 0.10;
 
 function arrayMove<T>(arr: T[], from: number, to: number): T[] {
   const copy = [...arr];
@@ -56,7 +56,7 @@ export function ProjectList() {
   const [dragTargetId, setDragTargetId] = useState<string | null>(null);
   const [ontoGroupId, setOntoGroupId] = useState<string | null>(null);
   const dragStateRef = useRef<{ zone: SwapResult; ontoGroupId: string | null; targetId: string | null }>({ zone: null, ontoGroupId: null, targetId: null });
-  const sourceTopRef = useRef<number>(0);
+  const sourceIdxRef = useRef<number>(-1);
   const isDragging = activeId !== null;
 
   const flatTree = useMemo(() => buildTree(projects, groups), [projects, groups]);
@@ -96,14 +96,18 @@ export function ProjectList() {
     activationConstraints: [new PointerActivationConstraints.Delay({ value: 300, tolerance: 5 })],
   }), []);
 
-  const getSwapDirection = (y: number, rect: DOMRect): SwapResult => {
+  const getSwapDirection = (y: number, rect: DOMRect, targetIdx: number): SwapResult => {
     const ratio = (y - rect.top) / rect.height;
-    const fromAbove = sourceTopRef.current <= rect.top;
-    if (fromAbove) {
+    const srcIdx = sourceIdxRef.current;
+    if (srcIdx < 0) return "onto";
+    if (srcIdx < targetIdx) {
       if (ratio > 1 - SWAP_THRESHOLD) return "after";
       return "onto";
     }
-    if (ratio < SWAP_THRESHOLD) return "before";
+    if (srcIdx > targetIdx) {
+      if (ratio < SWAP_THRESHOLD) return "before";
+      return "onto";
+    }
     return "onto";
   };
 
@@ -129,8 +133,7 @@ export function ProjectList() {
     setDragTargetId(null);
     setOntoGroupId(null);
     dragStateRef.current = { zone: null, ontoGroupId: null, targetId: null };
-    const sourceEl = (e.operation?.source as any)?.element as HTMLElement;
-    sourceTopRef.current = sourceEl ? sourceEl.getBoundingClientRect().top : 0;
+    sourceIdxRef.current = flatTree.findIndex((it) => it.id === sourceId);
   };
 
   const handleDragOver = (e: any) => {
@@ -138,12 +141,14 @@ export function ProjectList() {
     if (!target) return;
     const targetEl = (target as any)?.element as HTMLElement;
     if (!targetEl) return;
+    const targetId = target.id as string;
+    const targetIdx = flatTree.findIndex((it) => it.id === targetId);
     const rect = targetEl.getBoundingClientRect();
-    const zone = getSwapDirection(e.operation.position.y, rect);
-    const tgid = zone === "onto" ? getTargetGroupId(target.id) : null;
-    dragStateRef.current = { zone, ontoGroupId: tgid, targetId: target.id as string };
+    const zone = getSwapDirection(e.operation.position.y, rect, targetIdx);
+    const tgid = zone === "onto" ? getTargetGroupId(targetId) : null;
+    dragStateRef.current = { zone, ontoGroupId: tgid, targetId };
     setDragZone(zone);
-    setDragTargetId(target.id as string);
+    setDragTargetId(targetId);
     setOntoGroupId(tgid);
   };
 
