@@ -95,7 +95,7 @@ export function ProjectList() {
     activationConstraints: [new PointerActivationConstraints.Delay({ value: 300, tolerance: 5 })],
   }), []);
 
-  const getSwapDirection = (y: number, rect: DOMRect, targetIdx: number): SwapResult => {
+  const computeZone = (y: number, rect: DOMRect, targetIdx: number): SwapResult => {
     const ratio = (y - rect.top) / rect.height;
     const srcIdx = sourceIdxRef.current;
     if (srcIdx < 0) return "onto";
@@ -135,20 +135,30 @@ export function ProjectList() {
     sourceIdxRef.current = flatTree.findIndex((it) => it.id === sourceId);
   };
 
-  const handleDragOver = (e: any) => {
-    const target = e.operation?.target;
-    if (!target) return;
-    const targetEl = (target as any)?.element as HTMLElement;
-    if (!targetEl) return;
-    const targetId = target.id as string;
-    const targetIdx = flatTree.findIndex((it) => it.id === targetId);
-    const rect = targetEl.getBoundingClientRect();
-    const zone = getSwapDirection(e.operation.position.y, rect, targetIdx);
-    const tgid = zone === "onto" ? getTargetGroupId(targetId) : null;
-    dragStateRef.current = { zone, ontoGroupId: tgid, targetId };
+  const updateZoneFromElement = (x: number, y: number) => {
+    const el = document.elementFromPoint(x, y);
+    if (!el) return;
+    const itemEl = (el as HTMLElement).closest("[data-sortable-id]") as HTMLElement | null;
+    if (!itemEl) return;
+    const id = itemEl.dataset.sortableId;
+    if (!id) return;
+    const targetIdx = flatTree.findIndex((it) => it.id === id);
+    if (targetIdx < 0) return;
+    const rect = itemEl.getBoundingClientRect();
+    const zone = computeZone(y, rect, targetIdx);
+    const tgid = zone === "onto" ? getTargetGroupId(id) : null;
+    dragStateRef.current = { zone, ontoGroupId: tgid, targetId: id };
     setDragZone(zone);
-    setDragTargetId(targetId);
+    setDragTargetId(id);
     setOntoGroupId(tgid);
+  };
+
+  const handleDragMove = (e: any) => {
+    updateZoneFromElement(e.operation.position.x, e.operation.position.y);
+  };
+
+  const handleDragOver = (e: any) => {
+    updateZoneFromElement(e.operation.position.x, e.operation.position.y);
   };
 
   const handleDragEnd = (e: any) => {
@@ -271,7 +281,7 @@ export function ProjectList() {
   const activeItem = activeId ? itemMap.get(activeId) : null;
 
   return (
-    <DragDropProvider plugins={(defaults) => [...defaults, pointerSensor]} onDragStart={handleDragStart} onDragOver={handleDragOver} onDragEnd={handleDragEnd}>
+    <DragDropProvider plugins={(defaults) => [...defaults, pointerSensor]} onDragStart={handleDragStart} onDragMove={handleDragMove} onDragOver={handleDragOver} onDragEnd={handleDragEnd}>
       <aside style={{ width: 260, background: "var(--color-base)", display: "flex", flexDirection: "column", flexShrink: 0, borderRight: "1px solid var(--color-hover)", position: "relative" }}>
         <div style={{ padding: "14px 16px", display: "flex", alignItems: "center", justifyContent: "space-between" }}>
           <span style={{ fontSize: 14, fontWeight: 600, color: "var(--color-text)" }}>{t.projectListTitle}</span>
@@ -324,7 +334,7 @@ function SortableTreeItem({ id, index, item, visible, activeId, dragZone, dragTa
 
   if (!visible) {
     return (
-      <div ref={ref} style={{ visibility: "hidden", height: 0, overflow: "hidden", margin: 0, padding: 0, border: "none", pointerEvents: "none" }}>
+      <div ref={ref} data-sortable-id={id} style={{ visibility: "hidden", height: 0, overflow: "hidden", margin: 0, padding: 0, border: "none", pointerEvents: "none" }}>
         <span ref={handleRef} />
       </div>
     );
@@ -335,7 +345,7 @@ function SortableTreeItem({ id, index, item, visible, activeId, dragZone, dragTa
     const isOnto = dragZone === "onto" && dragTargetId === id;
 
     return (
-      <div ref={ref}
+      <div ref={ref} data-sortable-id={id}
         style={{ margin: "1px 4px", display: "flex", alignItems: "center", background: isOnto ? "var(--color-card)" : "transparent", opacity: isSource ? 0.4 : 1, borderLeft: item.groupColor ? `3px solid ${item.groupColor}` : "3px solid transparent" }}>
         <span ref={handleRef} style={{ cursor: "grab", padding: "6px 4px", display: "flex", color: "var(--color-text-muted)", opacity: 0.6 }}>
           <GripVertical size={14} strokeWidth={1.5} />
@@ -364,7 +374,7 @@ function SortableTreeItem({ id, index, item, visible, activeId, dragZone, dragTa
   const sel = savedSelected === id;
 
   return (
-    <div ref={ref}
+    <div ref={ref} data-sortable-id={id}
       style={{
         padding: isGrouped ? "7px 14px 7px 18px" : "8px 14px", margin: "1px 4px",
         display: "flex", alignItems: "center", gap: 4,
