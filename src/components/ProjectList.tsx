@@ -147,6 +147,8 @@ export function ProjectList() {
     const rect = itemEl.getBoundingClientRect();
     const zone = computeZone(y, rect, targetIdx);
     const tgid = zone === "onto" ? getTargetGroupId(id) : null;
+    const prev = dragStateRef.current;
+    if (prev.zone === zone && prev.targetId === id) return;
     dragStateRef.current = { zone, ontoGroupId: tgid, targetId: id };
     setDragZone(zone);
     setDragTargetId(id);
