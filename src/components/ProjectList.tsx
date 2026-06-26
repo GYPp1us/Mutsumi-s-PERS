@@ -35,15 +35,15 @@ import { PointerSensor, PointerActivationConstraints } from "@dnd-kit/dom";
 
 import {
   createEmptySnapshot,
-  computeDragPreview,        // 预览树纯函数
-  computeZone,               // zone 判定
-  resolveTargetFromPoint,    // 坐标 → DOM 元素
-  deriveOntoGroupId,         // 推导目标分组 ID
-  resolveIntent,             // 意图推导
-  executeIntent,             // 意图执行
-  useFlipAnimation,          // FLIP 动画
+  computeDragPreview,           // 预览树纯函数
+  deriveOntoGroupId,            // 推导目标分组 ID
+  resolveIntent,                // 意图推导
+  executeIntent,                // 意图执行
+  useFlipAnimation,             // FLIP 动画
+  captureHeights,               // 拖拽开始时记录所有元素高度
+  resolveTargetFromSnapshot,    // 纯数学推算命中目标 (不查 DOM)
 } from "../lib/drag";
-import type { DragSnapshot, DragZone } from "../lib/drag";
+import type { DragSnapshot, HeightMap } from "../lib/drag";
 
 import { SortableTreeItem } from "./SortableTreeItem";
 import { OverlayCard } from "./OverlayCard";
@@ -98,6 +98,11 @@ export function ProjectList() {
   // 自动展开计时器
   const autoExpandTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
   const autoExpandTargetRef = useRef<string | null>(null);
+
+  // 高度快照: 拖拽开始时一次性记录所有元素高度，拖拽中不查 DOM
+  const heightMapRef = useRef<HeightMap>(new Map());
+  const containerTopRef = useRef<number>(0);
+
   const isDragging = dragSnap.phase === "dragging";
 
   // ─── displayTree: 核心派生数据 ───
@@ -185,6 +190,13 @@ export function ProjectList() {
     const sourceId = e.operation?.source?.id;  // dnd-kit 事件: 被拖拽项的 ID
     if (!sourceId) return;
     clearAutoExpandTimer();
+
+    // 一次性建立高度快照 + 记录容器位置
+    if (listRef.current) {
+      heightMapRef.current = captureHeights(listRef.current);
+      containerTopRef.current = listRef.current.getBoundingClientRect().top;
+    }
+
     const item = itemMap.get(sourceId);
     const idx = displayTree.findIndex((it) => it.id === sourceId);
     const srcGroup = item?.type === "project" ? item.project?.group_id : item?.groupId;
@@ -203,41 +215,30 @@ export function ProjectList() {
   // ─── handleDragOver: 拖拽经过（每帧触发） ───
   // eslint-disable-next-line @typescript-eslint/no-explicit-any
   const handleDragOver = useCallback((e: any) => {
-    // 优先使用 dnd-kit 的 sortable target
-    const target = e.operation?.target;
-    let targetId: string | null = null;
-    let targetEl: HTMLElement | null = null;
+    const snap = snapRef.current;
+    if (!snap.sourceId || snap.sourceIdx < 0) return;
 
-    if (target) {
-      targetId = target.id as string;
-      targetEl = (target as { element?: Element }).element as HTMLElement | null;
-    } else if (e.operation?.position) {
-      // 后备: 用指针坐标反向查找 DOM 元素
-      const resolved = resolveTargetFromPoint(e.operation.position.x, e.operation.position.y);
-      if (resolved) { targetId = resolved.id; targetEl = resolved.element; }
-    }
+    const pointerY: number | undefined = e.operation?.position?.y;
+    if (pointerY === undefined) return;
 
-    // 无目标 → 清空目标状态
-    if (!targetId || !targetEl) {
+    // 纯数学推算: 用快照高度 + 预览树顺序计算命中目标
+    const resolved = resolveTargetFromSnapshot(
+      heightMapRef.current,
+      displayTree,
+      pointerY,
+      containerTopRef.current,
+      listRef.current?.scrollTop ?? 0,
+      displayTree.findIndex((it) => it.id === snap.sourceId)
+    );
+
+    if (!resolved) {
       clearAutoExpandTimer();
       updSnap({ targetId: null, targetItem: null, targetIdx: -1, zone: null, ontoGroupId: null });
       return;
     }
 
-    const snap = snapRef.current;
-    if (!snap.sourceId) return;
-
-    const targetIdx = displayTree.findIndex((it) => it.id === targetId);
-    if (targetIdx < 0) return;
-
+    const { targetId, targetIdx, zone } = resolved;
     const targetItem = itemMap.get(targetId) ?? null;
-    const rect = targetEl.getBoundingClientRect();
-    const y = e.operation?.position?.y || 0;
-
-    // computeZone: 根据 Y 坐标判定 before/onto/after
-    const zone = targetItem?.type === "group-slot"
-      ? ("onto" as DragZone)         // group-slot 总是 onto
-      : computeZone(y, rect, targetIdx, snap.sourceIdx);
 
     // deriveOntoGroupId: 推导目标分组 ID（用于高亮和 badge）
     const ontoGroupId = deriveOntoGroupId(zone, targetItem);
