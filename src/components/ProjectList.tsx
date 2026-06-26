@@ -1,5 +1,5 @@
 import { useState, useEffect, useMemo, useRef, useCallback } from "react";
-import { useAppStore, buildDynamicTree, computeFinalOrder, findEnclosingGroup, nextGroupColor } from "../lib/store";
+import { useAppStore } from "../lib/store";
 import type { TreeItem } from "../lib/store";
 import type { Project, GroupInfo } from "../lib/tauri";
 import { useT } from "../lib/i18n";
@@ -8,19 +8,22 @@ import { Home, Folder, Star, Plus, ChevronDown, ChevronRight, GripVertical } fro
 import { DragDropProvider, DragOverlay } from "@dnd-kit/react";
 import { useSortable } from "@dnd-kit/react/sortable";
 import { PointerSensor, PointerActivationConstraints } from "@dnd-kit/dom";
-import { Modifier } from "@dnd-kit/abstract";
 import type { DragDropManager } from "@dnd-kit/dom";
+import { Modifier } from "@dnd-kit/abstract";
 
-type Zone = "before" | "onto" | "after" | null;
-const SWAP_THRESHOLD = 0.12;
+import {
+  createEmptySnapshot,
+  computeDragPreview,
+  computeZone,
+  resolveTargetFromPoint,
+  deriveOntoGroupId,
+  resolveIntent,
+  executeIntent,
+  useFlipAnimation,
+} from "../lib/drag";
+import type { DragSnapshot, DragZone } from "../lib/drag";
+
 const AUTO_EXPAND_DELAY = 400;
-
-function arrayMove<T>(arr: T[], from: number, to: number): T[] {
-  const copy = [...arr];
-  const [moved] = copy.splice(from, 1);
-  copy.splice(to, 0, moved);
-  return copy;
-}
 
 class RestrictToVertical extends Modifier<DragDropManager> {
   constructor(manager: DragDropManager) {
@@ -54,62 +57,39 @@ export function ProjectList() {
   const [editingGroupId, setEditingGroupId] = useState<string | null>(null);
   const [editName, setEditName] = useState("");
 
-  const [activeId, setActiveId] = useState<string | null>(null);
-  const [dragZone, setDragZone] = useState<Zone>(null);
-  const [dragTargetId, setDragTargetId] = useState<string | null>(null);
-  const [ontoGroupId, setOntoGroupId] = useState<string | null>(null);
+  const [dragSnap, setDragSnap] = useState<DragSnapshot>(createEmptySnapshot());
+  const snapRef = useRef(dragSnap);
+  snapRef.current = dragSnap;
 
-  const dragStateRef = useRef<{ zone: Zone; targetId: string | null; ontoGroupId: string | null }>({ zone: null, targetId: null, ontoGroupId: null });
-  const sourceIdxRef = useRef<number>(-1);
   const autoExpandTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
   const autoExpandTargetRef = useRef<string | null>(null);
-  const rafRef = useRef<ReturnType<typeof requestAnimationFrame> | null>(null);
-  const pendingDragStateRef = useRef<{ zone: Zone; targetId: string | null; ontoGroupId: string | null } | null>(null);
-  const isDragging = activeId !== null;
+  const isDragging = dragSnap.phase === "dragging";
 
-  const flushDragState = useCallback(() => {
-    rafRef.current = null;
-    const s = pendingDragStateRef.current;
-    if (!s) return;
-    pendingDragStateRef.current = null;
-    setDragZone(s.zone);
-    setDragTargetId(s.targetId);
-    setOntoGroupId(s.ontoGroupId);
-  }, []);
-
-  const scheduleDragStateFlush = useCallback((zone: Zone, targetId: string | null, ontoGroupId: string | null) => {
-    dragStateRef.current = { zone, targetId, ontoGroupId };
-    pendingDragStateRef.current = { zone, targetId, ontoGroupId };
-    if (!rafRef.current) {
-      rafRef.current = requestAnimationFrame(flushDragState);
-    }
-  }, [flushDragState]);
-
-  const sourceGroupId = useMemo(() => {
-    if (!activeId) return null;
-    const p = projects.find((pr) => pr.id === activeId);
-    if (p) return p.group_id || null;
-    const g = groups.find((gr) => gr.id === activeId);
-    if (g) return g.id;
-    return null;
-  }, [activeId, projects, groups]);
-
-  const flatTree = useMemo(
-    () => buildDynamicTree(projects, groups, isDragging, sourceGroupId),
-    [projects, groups, isDragging, sourceGroupId]
+  const displayTree = useMemo(
+    () => computeDragPreview(projects, groups, dragSnap),
+    [projects, groups, dragSnap]
   );
-  const itemMap = useMemo(() => new Map(flatTree.map((i) => [i.id, i])), [flatTree]);
 
-  useEffect(() => {
-    if (isDragging && activeId) {
-      sourceIdxRef.current = flatTree.findIndex((it) => it.id === activeId);
+  const itemMap = useMemo(
+    () => new Map(displayTree.map((i) => [i.id, i])),
+    [displayTree]
+  );
+
+  const listRef = useRef<HTMLDivElement>(null);
+  useFlipAnimation(listRef, displayTree);
+
+  const clearAutoExpandTimer = () => {
+    if (autoExpandTimerRef.current) {
+      clearTimeout(autoExpandTimerRef.current);
+      autoExpandTimerRef.current = null;
     }
-  }, [flatTree, isDragging, activeId]);
+    autoExpandTargetRef.current = null;
+  };
 
   const itemVisible = useMemo(() => {
     const map = new Map<string, boolean>();
     let skipGroup: string | null = null;
-    for (const item of flatTree) {
+    for (const item of displayTree) {
       if (item.type === "group-slot") {
         map.set(item.id, true);
       } else if (item.type === "group-header") {
@@ -122,12 +102,12 @@ export function ProjectList() {
       }
     }
     const emptyGroups = new Set<string>();
-    for (const item of flatTree) {
+    for (const item of displayTree) {
       if (item.type === "group-header" && !item.groupCollapsed && item.groupId) {
         emptyGroups.add(item.groupId);
       }
     }
-    for (const item of flatTree) {
+    for (const item of displayTree) {
       if (item.type === "project" && item.project?.group_id && map.get(item.id)) {
         emptyGroups.delete(item.project.group_id);
       }
@@ -136,114 +116,78 @@ export function ProjectList() {
       map.set(gid, false);
     }
     return map;
-  }, [flatTree, filter]);
+  }, [displayTree, filter]);
 
   const pointerSensor = useMemo(() => PointerSensor.configure({
     activationConstraints: [new PointerActivationConstraints.Delay({ value: 300, tolerance: 5 })],
   }), []);
 
-  const clearAutoExpandTimer = () => {
-    if (autoExpandTimerRef.current) {
-      clearTimeout(autoExpandTimerRef.current);
-      autoExpandTimerRef.current = null;
-    }
-    autoExpandTargetRef.current = null;
-  };
-
-  const computeZone = (y: number, rect: DOMRect, targetIdx: number): Zone => {
-    if (targetIdx === sourceIdxRef.current) return null;
-    const ratio = (y - rect.top) / rect.height;
-    if (ratio < SWAP_THRESHOLD) return "before";
-    if (ratio > 1 - SWAP_THRESHOLD) return "after";
-    return "onto";
-  };
-
-  const resolveTargetFromPoint = (x: number, y: number): { id: string; element: HTMLElement } | null => {
-    if (!Number.isFinite(x) || !Number.isFinite(y)) return null;
-    const el = document.elementFromPoint(x, y) as HTMLElement | null;
-    if (!el) return null;
-    const target = el.closest("[data-dnd-item-id]") as HTMLElement | null;
-    if (!target) return null;
-    const id = target.getAttribute("data-dnd-item-id");
-    if (!id) return null;
-    return { id, element: target };
-  };
+  const updSnap = useCallback((patch: Partial<DragSnapshot>) => {
+    setDragSnap((prev) => {
+      const next = { ...prev, ...patch };
+      const intent = resolveIntent(next);
+      return intent !== prev.intent ? { ...next, intent } : next;
+    });
+  }, []);
 
   // eslint-disable-next-line @typescript-eslint/no-explicit-any
   const handleDragStart = useCallback((e: any) => {
     const sourceId = e.operation?.source?.id;
     if (!sourceId) return;
-    setActiveId(sourceId);
-    setDragZone(null);
-    setDragTargetId(null);
-    setOntoGroupId(null);
-    dragStateRef.current = { zone: null, targetId: null, ontoGroupId: null };
     clearAutoExpandTimer();
-    sourceIdxRef.current = flatTree.findIndex((it) => it.id === sourceId);
-    const srcItem = itemMap.get(sourceId);
-    const srcGroup = srcItem?.type === "project" ? srcItem.project?.group_id : srcItem?.groupId;
-    log.dragStart(sourceId, sourceIdxRef.current, srcGroup,
-      flatTree.map((it) => ({ id: it.id, type: it.type, gid: it.project?.group_id ?? it.groupId ?? null }))
+    const item = itemMap.get(sourceId);
+    const idx = displayTree.findIndex((it) => it.id === sourceId);
+    const srcGroup = item?.type === "project" ? item.project?.group_id : item?.groupId;
+    log.dragStart(sourceId, idx, srcGroup,
+      displayTree.map((it) => ({ id: it.id, type: it.type, gid: it.project?.group_id ?? it.groupId ?? null }))
     );
-  }, [flatTree, itemMap]);
+    updSnap({
+      phase: "dragging",
+      sourceId,
+      sourceItem: item ?? null,
+      sourceIdx: idx,
+      targetId: null,
+      targetItem: null,
+      targetIdx: -1,
+      zone: null,
+      ontoGroupId: null,
+    });
+  }, [displayTree, itemMap, updSnap]);
 
   // eslint-disable-next-line @typescript-eslint/no-explicit-any
   const handleDragOver = useCallback((e: any) => {
     const target = e.operation?.target;
     let targetId: string | null = null;
     let targetEl: HTMLElement | null = null;
-    let method: "sortable" | "point" = "sortable";
 
     if (target) {
       targetId = target.id as string;
       targetEl = (target as { element?: Element }).element as HTMLElement | null;
     } else if (e.operation?.position) {
-      method = "point";
-      const pos = e.operation.position;
-      const resolved = resolveTargetFromPoint(pos.x, pos.y);
-      if (resolved) {
-        targetId = resolved.id;
-        targetEl = resolved.element;
-      }
+      const resolved = resolveTargetFromPoint(e.operation.position.x, e.operation.position.y);
+      if (resolved) { targetId = resolved.id; targetEl = resolved.element; }
     }
 
     if (!targetId || !targetEl) {
       clearAutoExpandTimer();
-      if (dragStateRef.current.zone !== null) {
-        log.dragOverNull();
-      }
-      const prev = dragStateRef.current;
-      if (prev.zone === null && prev.targetId === null) return;
-      scheduleDragStateFlush(null, null, null);
+      updSnap({ targetId: null, targetItem: null, targetIdx: -1, zone: null, ontoGroupId: null });
       return;
     }
 
-    const targetIdx = flatTree.findIndex((it) => it.id === targetId);
+    const snap = snapRef.current;
+    if (!snap.sourceId) return;
+
+    const targetIdx = displayTree.findIndex((it) => it.id === targetId);
     if (targetIdx < 0) return;
 
+    const targetItem = itemMap.get(targetId) ?? null;
     const rect = targetEl.getBoundingClientRect();
-    const targetItem = itemMap.get(targetId);
-    let zone = computeZone(e.operation?.position?.y || 0, rect, targetIdx);
-    if (targetItem?.type === "group-slot") zone = "onto";
+    const y = e.operation?.position?.y || 0;
+    const zone = targetItem?.type === "group-slot"
+      ? ("onto" as DragZone)
+      : computeZone(y, rect, targetIdx, snap.sourceIdx);
 
-    let tgid: string | null = null;
-    if (zone === "onto") {
-      if (targetItem) {
-        if (targetItem.type === "group-slot") tgid = targetItem.groupId || null;
-        else if (targetItem.type === "group-header") tgid = targetItem.groupId || null;
-        else if (targetItem.project?.group_id) tgid = targetItem.project.group_id;
-      }
-    } else if (zone === "before" || zone === "after") {
-      if (targetItem) {
-        if (targetItem.type === "group-header") tgid = targetItem.groupId || null;
-        else if (targetItem.project?.group_id) tgid = targetItem.project.group_id;
-      }
-    }
-
-    if (targetIdx !== sourceIdxRef.current) {
-      log.dragOverTarget(method, targetId, targetItem?.type, zone, tgid,
-        rect.height > 0 ? ((e.operation?.position?.y || 0) - rect.top) / rect.height : 0);
-    }
+    const ontoGroupId = deriveOntoGroupId(zone, targetItem);
 
     if (targetItem?.type === "group-header" && targetItem.groupCollapsed) {
       if (autoExpandTargetRef.current !== targetId) {
@@ -259,214 +203,29 @@ export function ProjectList() {
       clearAutoExpandTimer();
     }
 
-    const prev = dragStateRef.current;
-    if (prev.zone === zone && prev.targetId === targetId) return;
-    if (zone === null && prev.zone !== null) return;
-    scheduleDragStateFlush(zone, targetId, tgid);
-  }, [flatTree, itemMap, toggleGroup, scheduleDragStateFlush]);
+    if (snap.targetId === targetId && snap.zone === zone && snap.ontoGroupId === ontoGroupId) return;
 
-  // eslint-disable-next-line @typescript-eslint/no-explicit-any
-  const handleDragEnd = useCallback((e: any) => {
-    const source = e.operation?.source;
-    const { zone, targetId: endTargetId } = dragStateRef.current;
+    updSnap({ targetId, targetItem, targetIdx, zone, ontoGroupId });
+  }, [displayTree, itemMap, updSnap, toggleGroup]);
 
-    setActiveId(null);
-    setDragZone(null);
-    setDragTargetId(null);
-    setOntoGroupId(null);
-    if (rafRef.current) { cancelAnimationFrame(rafRef.current); rafRef.current = null; }
-    pendingDragStateRef.current = null;
-    dragStateRef.current = { zone: null, targetId: null, ontoGroupId: null };
+  const handleDragEnd = useCallback(() => {
+    const snap = snapRef.current;
     clearAutoExpandTimer();
 
-    if (!source) return;
-
-    const sourceId = source.id as string;
-    const srcInitialIdx = source.initialIndex;
-    const srcNewIdx = source.index;
-
-    if (!endTargetId || !zone) {
-      if (srcNewIdx !== srcInitialIdx && srcNewIdx >= 0 && srcInitialIdx >= 0) {
-        const reordered = arrayMove(flatTree, srcInitialIdx, srcNewIdx);
-        const liveProjects = useAppStore.getState().projects;
-        const finalProjectIds = computeFinalOrder(reordered, liveProjects);
-        log.beforeOrder("NO_TARGET", liveProjects);
-        const sp = liveProjects.find((p) => p.id === sourceId);
-        const newEnclosing = findEnclosingGroup(reordered, srcNewIdx);
-        if (sp?.group_id) {
-          if (newEnclosing !== sp.group_id) {
-            log.dragEnd("NO_TARGET_UNGROUP", sourceId, null, null, [{ projectId: sourceId, groupId: null }]);
-            batchMoveAndReorder([{ projectId: sourceId, groupId: null }], finalProjectIds);
-            return;
-          }
-        }
-        log.dragEnd("NO_TARGET_REORDER", sourceId, null, null, null);
-        reorderAll(finalProjectIds);
-      }
-      return;
+    if (snap.phase === "dragging" && snap.sourceId && snap.targetId && snap.zone) {
+      const intent = snap.intent;
+      executeIntent(
+        intent,
+        snap,
+        displayTree,
+        projects,
+        groups,
+        { reorderAll, batchMoveAndReorder, createGroup, toggleGroup, t }
+      );
     }
 
-    if (source.id === endTargetId) return;
-
-    const sourceItem = itemMap.get(sourceId);
-    const targetItem = itemMap.get(endTargetId);
-    if (!sourceItem || !targetItem) return;
-
-    const sourceFlatIdx = flatTree.findIndex((it) => it.id === sourceId);
-    const targetFlatIdx = flatTree.findIndex((it) => it.id === endTargetId);
-    if (sourceFlatIdx === -1 || targetFlatIdx === -1) return;
-
-    if (zone === "onto") {
-      if (sourceItem.type === "group-header") {
-        log.dragEnd("ONTO_GROUP_HEADER_DOWNGRADE", sourceId, endTargetId, zone, null);
-        handleGroupAsBefore(sourceItem, endTargetId, sourceFlatIdx, targetFlatIdx, "before", {
-          projects: useAppStore.getState().projects,
-          groups: useAppStore.getState().groups,
-          flatTree,
-          reorderAll,
-        });
-        return;
-      }
-
-      const targetGid = targetItem.type === "group-slot"
-        ? targetItem.groupId
-        : targetItem.type === "group-header"
-        ? targetItem.groupId || null
-        : targetItem.project?.group_id || null;
-
-      if (targetItem.type === "group-slot" && targetGid) {
-        const liveProjects = useAppStore.getState().projects;
-        const no = liveProjects.map((p) => p.id);
-        const si = no.indexOf(sourceId), ti = no.indexOf(endTargetId);
-        if (si !== -1 && ti !== -1) { no.splice(si, 1); no.splice(ti - (si < ti ? 1 : 0), 0, sourceId); }
-        log.dragEnd("ONTO_UNGROUP", sourceId, endTargetId, zone, [{ projectId: sourceId, groupId: null }]);
-        log.beforeOrder("UNGROUP", liveProjects);
-        batchMoveAndReorder([{ projectId: sourceId, groupId: null }], no);
-        return;
-      }
-
-      if (targetGid) {
-        const sp = useAppStore.getState().projects.find((p) => p.id === sourceId);
-        if (sp?.group_id === targetGid) return;
-        const targetGroup = groups.find((g) => g.id === targetGid);
-        if (targetGroup?.collapsed) {
-          toggleGroup(targetGid, false);
-        }
-        const liveProjects = useAppStore.getState().projects;
-        const no = liveProjects.map((p) => p.id);
-        const si = no.indexOf(sourceId), ti = no.indexOf(endTargetId);
-        if (si !== -1 && ti !== -1) { no.splice(si, 1); no.splice(ti - (si < ti ? 1 : 0), 0, sourceId); }
-        log.dragEnd("ONTO_JOIN", sourceId, endTargetId, zone, [{ projectId: sourceId, groupId: targetGid }]);
-        log.beforeOrder("JOIN", liveProjects);
-        batchMoveAndReorder([{ projectId: sourceId, groupId: targetGid }], no);
-      } else {
-        const color = nextGroupColor(groups);
-        const newGroupName = t.groupDefaultName(groups.length + 1);
-        log.dragEnd("ONTO_CREATE_GROUP", sourceId, endTargetId, zone, null);
-        createGroup(newGroupName, color).then((ngid) => {
-          const liveProjects = useAppStore.getState().projects;
-          const no = liveProjects.map((p) => p.id);
-          const si = no.indexOf(sourceId), ti = no.indexOf(endTargetId);
-          if (si !== -1 && ti !== -1) { no.splice(si, 1); no.splice(ti - (si < ti ? 1 : 0), 0, sourceId); }
-          log.beforeOrder("CREATE_GROUP", liveProjects);
-          batchMoveAndReorder([
-            { projectId: sourceId, groupId: ngid },
-            { projectId: endTargetId, groupId: ngid }
-          ], no);
-        }).catch((err) => { console.error("createGroup failed", err); });
-      }
-      return;
-    }
-
-    const isGroupHeader = sourceItem.type === "group-header";
-    if (isGroupHeader) {
-      const gid = sourceItem.groupId;
-      const groupChanges = gid ? [{ projectId: gid, groupId: null }] : null;
-      log.dragEnd(`GROUP_HEADER_${zone.toUpperCase()}`, sourceId, endTargetId, zone, groupChanges as { projectId: string; groupId: string | null }[] | null);
-      handleGroupAsBefore(sourceItem, endTargetId, sourceFlatIdx, targetFlatIdx, zone, {
-        projects: useAppStore.getState().projects,
-        groups: useAppStore.getState().groups,
-        flatTree,
-        reorderAll,
-      });
-      return;
-    }
-
-    const liveProjects = useAppStore.getState().projects;
-    const sp = liveProjects.find((p) => p.id === sourceId);
-
-    if (!sp?.group_id) {
-      const targetGidInReorder = targetItem.type === "group-header"
-        ? targetItem.groupId
-        : targetItem.type === "group-slot"
-        ? targetItem.groupId
-        : targetItem.project?.group_id || null;
-      if (targetGidInReorder) {
-        const no = liveProjects.map((p) => p.id);
-        const si = no.indexOf(sourceId), ti = no.indexOf(endTargetId);
-        if (si !== -1 && ti !== -1) { no.splice(si, 1); no.splice(ti - (si < ti ? 1 : 0), 0, sourceId); }
-        const targetGroup = groups.find((g) => g.id === targetGidInReorder);
-        if (targetGroup?.collapsed) toggleGroup(targetGidInReorder, false);
-        log.dragEnd("BEFORE_AFTER_JOIN", sourceId, endTargetId, zone, [{ projectId: sourceId, groupId: targetGidInReorder }]);
-        log.beforeOrder("BF_JOIN", liveProjects);
-        batchMoveAndReorder([{ projectId: sourceId, groupId: targetGidInReorder }], no);
-        return;
-      }
-    }
-
-    const insertAt = zone === "before" ? targetFlatIdx : targetFlatIdx + 1;
-    const to = insertAt > sourceFlatIdx ? insertAt - 1 : insertAt;
-    const reordered = arrayMove(flatTree, sourceFlatIdx, Math.max(0, Math.min(to, flatTree.length - 1)));
-
-    const finalProjectIds = computeFinalOrder(reordered, liveProjects);
-
-    if (sp?.group_id) {
-      const newIdx = reordered.findIndex((it) => it.id === sourceId);
-      const enclosing = findEnclosingGroup(reordered, newIdx);
-      if (enclosing !== sp.group_id) {
-        log.dragEnd("BEFORE_AFTER_UNGROUP", sourceId, endTargetId, zone, [{ projectId: sourceId, groupId: null }]);
-        log.beforeOrder("BF_UNGROUP", liveProjects);
-        batchMoveAndReorder([{ projectId: sourceId, groupId: null }], finalProjectIds);
-        return;
-      }
-    }
-
-    log.dragEnd("BEFORE_AFTER_REORDER", sourceId, endTargetId, zone, null);
-    reorderAll(finalProjectIds);
-  }, [flatTree, itemMap, groups, reorderAll, createGroup, toggleGroup, batchMoveAndReorder, t]);
-
-  const handleGroupAsBefore = (
-    sourceItem: TreeItem,
-    _targetId: string,
-    sourceFlatIdx: number,
-    _targetFlatIdx: number,
-    zone: Zone,
-    ctx: {
-      projects: Project[];
-      groups: GroupInfo[];
-      flatTree: TreeItem[];
-      reorderAll: (ids: string[]) => void;
-    }
-  ) => {
-    const insertAt = zone === "after" ? _targetFlatIdx + 1 : _targetFlatIdx;
-    const to = insertAt > sourceFlatIdx ? insertAt - 1 : insertAt;
-    let reordered = arrayMove(ctx.flatTree, sourceFlatIdx, Math.max(0, Math.min(to, ctx.flatTree.length - 1)));
-
-    const gid = sourceItem.groupId;
-    if (gid) {
-      const groupProjIds = new Set(ctx.projects.filter((p) => p.group_id === gid).map((p) => p.id));
-      const withoutProjects = reordered.filter((it) => it.type !== "project" || !groupProjIds.has(it.id));
-      const headerIdx = withoutProjects.findIndex((it) => it.id === sourceItem.id);
-      const groupProjects = reordered.filter((it) => it.type === "project" && groupProjIds.has(it.id));
-      if (headerIdx !== -1) {
-        withoutProjects.splice(headerIdx + 1, 0, ...groupProjects);
-        reordered = withoutProjects;
-      }
-    }
-
-    const finalProjectIds = computeFinalOrder(reordered, ctx.projects);
-    ctx.reorderAll(finalProjectIds);
-  };
+    setDragSnap(createEmptySnapshot());
+  }, [displayTree, projects, groups, reorderAll, batchMoveAndReorder, createGroup, toggleGroup, t]);
 
   const handleGroupRename = (gid: string) => {
     const g = groups.find((x) => x.id === gid);
@@ -486,7 +245,7 @@ export function ProjectList() {
     } catch (e) { console.error("Failed to add project:", e); }
   };
 
-  const activeItem = activeId ? itemMap.get(activeId) : null;
+  const activeItem = isDragging && dragSnap.sourceId ? itemMap.get(dragSnap.sourceId) : null;
 
   return (
     <DragDropProvider
@@ -505,18 +264,18 @@ export function ProjectList() {
         </div>
         <input type="text" placeholder={t.filterPlaceholder} value={filter} onChange={(e) => !isDragging && setFilter(e.target.value)}
           style={{ margin: "0 12px 8px", background: "var(--color-card)", color: "var(--color-text-secondary)", border: "none", padding: "7px 12px", fontSize: 12, outline: "none" }} />
-        <div style={{ flex: 1, minHeight: 0, overflowY: "auto", padding: "4px 0" }}>
+        <div ref={listRef} style={{ flex: 1, minHeight: 0, overflowY: "auto", padding: "4px 0" }}>
           <div onClick={() => selectProject(null)}
             style={{ padding: "8px 14px", margin: "1px 4px", display: "flex", alignItems: "center", gap: 8, cursor: "pointer", opacity: 0.6 }}
-            onMouseEnter={(e) => { e.currentTarget.style.background = "var(--color-hover)"; e.currentTarget.style.opacity = "0.8"; }}
-            onMouseLeave={(e) => { e.currentTarget.style.background = "transparent"; e.currentTarget.style.opacity = "0.6"; }}>
+            onMouseEnter={(e: React.MouseEvent<HTMLDivElement>) => { e.currentTarget.style.background = "var(--color-hover)"; e.currentTarget.style.opacity = "0.8"; }}
+            onMouseLeave={(e: React.MouseEvent<HTMLDivElement>) => { e.currentTarget.style.background = "transparent"; e.currentTarget.style.opacity = "0.6"; }}>
             <Home size={16} strokeWidth={1.5} /><span style={{ color: "var(--color-text-secondary)" }}>{t.homeItem}</span>
           </div>
-          {flatTree.map((item, idx) => (
+          {displayTree.map((item, idx) => (
             <SortableTreeItem key={item.id} id={item.id} index={idx} item={item}
               visible={itemVisible.get(item.id) !== false}
-              activeId={activeId}
-              dragZone={dragZone} dragTargetId={dragTargetId} ontoGroupId={ontoGroupId}
+              activeId={dragSnap.sourceId}
+              dragZone={dragSnap.zone} dragTargetId={dragSnap.targetId} ontoGroupId={dragSnap.ontoGroupId}
               savedSelected={savedSelected} filterActive={!!filter && !isDragging}
               editingGroupId={editingGroupId} editName={editName} setEditName={setEditName} commitRename={commitRename}
               handleGroupRename={handleGroupRename} toggleGroup={toggleGroup} selectProject={selectProject}
@@ -528,7 +287,7 @@ export function ProjectList() {
         </div>
       </aside>
       <DragOverlay dropAnimation={null} style={{ pointerEvents: "none" }}>
-        {activeItem && <OverlayCard item={activeItem} ontoGroupId={ontoGroupId} dragZone={dragZone} groups={groups} projects={projects} itemMap={itemMap} dragTargetId={dragTargetId} />}
+        {activeItem && <OverlayCard item={activeItem} ontoGroupId={dragSnap.ontoGroupId} dragZone={dragSnap.zone} groups={groups} projects={projects} itemMap={itemMap} dragTargetId={dragSnap.targetId} />}
       </DragOverlay>
     </DragDropProvider>
   );
@@ -542,7 +301,7 @@ interface SortableTreeItemProps {
   item: TreeItem;
   visible: boolean;
   activeId: string | null;
-  dragZone: Zone;
+  dragZone: DragZone;
   dragTargetId: string | null;
   ontoGroupId: string | null;
   savedSelected: string | null;
@@ -560,9 +319,7 @@ interface SortableTreeItemProps {
 function SortableTreeItem({ id, index, item, visible, activeId, dragZone, dragTargetId, ontoGroupId, savedSelected, filterActive,
   editingGroupId, editName, setEditName, commitRename, handleGroupRename, toggleGroup, selectProject, projects }: SortableTreeItemProps) {
 
-  const isOntoTarget = dragZone === "onto" && dragTargetId === id;
-  const isInOntoGroup = !!ontoGroupId && item.groupId === ontoGroupId;
-  const disabled = !visible || filterActive || (isOntoTarget && item.type !== "group-slot");
+  const disabled = !visible || filterActive;
 
   const { ref, handleRef, isDragSource } = useSortable({
     id, index,
@@ -583,12 +340,14 @@ function SortableTreeItem({ id, index, item, visible, activeId, dragZone, dragTa
     return (
       <div ref={ref} data-dnd-item-id={id}>
         <span ref={handleRef} style={{ display: "none" }} />
-        <GroupSlotItem item={item} isOnto={isOntoTarget || isInOntoGroup} />
+        <GroupSlotItem isOnto={dragZone === "onto" && dragTargetId === id} />
       </div>
     );
   }
 
   if (item.type === "group-header") {
+    const isOntoTarget = dragZone === "onto" && dragTargetId === id;
+    const isInOntoGroup = !!ontoGroupId && item.groupId === ontoGroupId;
     return (
       <div ref={ref} data-dnd-item-id={id}>
         <GroupHeaderItem ref_handle={handleRef} item={item} isSource={isSource} isOnto={isOntoTarget}
@@ -602,6 +361,8 @@ function SortableTreeItem({ id, index, item, visible, activeId, dragZone, dragTa
   }
 
   const p: Project = item.project!;
+  const isOntoTarget = dragZone === "onto" && dragTargetId === id;
+  const isInOntoGroup = !!ontoGroupId && (item.project?.group_id === ontoGroupId || (dragZone === "onto" && dragTargetId === id && !item.project?.group_id));
   return (
     <div ref={ref} data-dnd-item-id={id}>
       <ProjectItem item={item} project={p} isSource={isSource} isOnto={isOntoTarget}
@@ -629,7 +390,7 @@ interface GroupHeaderItemProps {
   toggleGroup: (id: string, collapsed: boolean) => void;
   isDragSource: boolean;
   projects: Project[];
-  dragZone: Zone;
+  dragZone: DragZone;
   dragTargetId: string | null;
   itemId: string;
 }
@@ -679,7 +440,7 @@ interface ProjectItemProps {
   isDragSource: boolean;
   selectProject: (id: string | null) => void;
   filterActive: boolean;
-  dragZone: Zone;
+  dragZone: DragZone;
   dragTargetId: string | null;
 }
 
@@ -726,7 +487,7 @@ function ProjectItem({ item, project: p, isSource, isOnto, isInOntoGroup, handle
 
 /* ─── GroupSlotItem ─── */
 
-function GroupSlotItem({ isOnto }: { item: TreeItem; isOnto: boolean }) {
+function GroupSlotItem({ isOnto }: { isOnto: boolean }) {
   const t = useT();
   return (
     <div style={{
@@ -748,7 +509,7 @@ function GroupSlotItem({ isOnto }: { item: TreeItem; isOnto: boolean }) {
 function OverlayCard({ item, ontoGroupId, dragZone, groups, projects, itemMap, dragTargetId }: {
   item: TreeItem;
   ontoGroupId: string | null;
-  dragZone: Zone;
+  dragZone: DragZone;
   groups: GroupInfo[];
   projects: Project[];
   itemMap: Map<string, TreeItem>;
