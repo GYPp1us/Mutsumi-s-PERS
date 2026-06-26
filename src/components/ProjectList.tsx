@@ -269,6 +269,14 @@ export function ProjectList() {
       if (listRef.current) {
         heightMapRef.current = captureHeights(listRef.current);
         containerTopRef.current = listRef.current.getBoundingClientRect().top;
+        // 手工补入 group-slot 高度（slot 拖拽开始后才注入 DOM，快照时还不存在）
+        const src = projects.find((p) => p.id === itemId);
+        if (src?.group_id) {
+          const g = groups.find((grp) => grp.id === src.group_id);
+          if (g && !g.collapsed) {
+            heightMapRef.current.set(`slot-${src.group_id}`, 42);
+          }
+        }
       }
 
       const item = itemMap.get(itemId);
