@@ -199,6 +199,12 @@ export function ProjectList() {
     if (listRef.current) {
       heightMapRef.current = captureHeights(listRef.current);
       containerTopRef.current = listRef.current.getBoundingClientRect().top;
+      import.meta.env.DEV && console.log(
+        "[DRAG-SNAP]",
+        `containerTop=${containerTopRef.current.toFixed(0)}`,
+        `scrollTop=${listRef.current.scrollTop}`,
+        `itemCount=${heightMapRef.current.size}`,
+      );
     }
 
     // 立即记录 sourceId（不等 React 渲染），确保 handleDragOver 可读
@@ -230,15 +236,36 @@ export function ProjectList() {
     if (pointerY === undefined) return;
 
     const sourceIdx = displayTree.findIndex((it) => it.id === drag.sourceId);
+    const ct = containerTopRef.current;
+    const st = listRef.current?.scrollTop ?? 0;
+    const contentY = pointerY - ct + st;
+
+    // 每帧入口日志: 确认拖拽被正常捕获
+    import.meta.env.DEV && console.log(
+      "[DRAG-FRAME]",
+      `py=${pointerY.toFixed(0)}`,
+      `ct=${ct.toFixed(0)}`,
+      `st=${st}`,
+      `cY=${contentY.toFixed(0)}`,
+      `srcIdx=${sourceIdx}`,
+      `treeLen=${displayTree.length}`,
+    );
 
     // 纯数学推算: 用快照高度 + 预览树顺序计算命中目标
     const resolved = resolveTargetFromSnapshot(
       heightMapRef.current,
       displayTree,
       pointerY,
-      containerTopRef.current,
-      listRef.current?.scrollTop ?? 0,
+      ct,
+      st,
       sourceIdx
+    );
+
+    import.meta.env.DEV && console.log(
+      "[DRAG-RESOLVE]",
+      resolved
+        ? `hit=${resolved.targetId.slice(0,8)} zone=${resolved.zone} idx=${resolved.targetIdx}`
+        : "null (pointer outside all items)",
     );
 
     if (!resolved) {
