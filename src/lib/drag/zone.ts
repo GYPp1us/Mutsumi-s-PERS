@@ -73,24 +73,19 @@ export function resolveTargetFromPoint(
 // ===========================================================================
 export function deriveOntoGroupId(
   zone: DragZone,
-  targetItem: DragSnapshot["targetItem"]  // 复用 DragSnapshot 的 targetItem 类型
+  targetItem: DragSnapshot["targetItem"],
+  sourceGroupId: string | null  // 源的分组 ID，用于抑制同组高亮
 ): string | null {
   if (!zone || !targetItem) return null;
 
-  // group-slot: 专门的"拖出此组"虚拟条目
   if (targetItem.type === "group-slot") return targetItem.groupId || null;
-
-  // 分组头: 返回该分组 ID
   if (targetItem.type === "group-header") return targetItem.groupId || null;
 
-  // 普通项目: 返回其所属分组 ID
-  if (zone === "onto") {
-    return targetItem.project?.group_id || null;
-  }
+  let gid: string | null = null;
+  if (zone === "onto") gid = targetItem.project?.group_id || null;
+  else if (zone === "before" || zone === "after") gid = targetItem.project?.group_id ?? targetItem.groupId ?? null;
 
-  if (zone === "before" || zone === "after") {
-    return targetItem.project?.group_id ?? targetItem.groupId ?? null;
-  }
-
-  return null;
+  // 源已在目标分组中 → 不显示"加入组"高亮/badge
+  if (gid && sourceGroupId === gid) return null;
+  return gid;
 }

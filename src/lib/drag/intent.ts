@@ -56,8 +56,13 @@ export function resolveIntent(snap: DragSnapshot): DragIntent {
 
   // onto 区域:
   if (zone === "onto") {
-    // 目标在分组中 → 加入该分组
-    if (targetItem.project?.group_id) return "join_group";
+    // 源已在目标分组中 → 组内重排，不是"加入组"
+    if (targetItem.project?.group_id) {
+      if (sourceItem.project?.group_id === targetItem.project.group_id) {
+        return "reorder";
+      }
+      return "join_group";
+    }
     // 双方都无分组 → 建新组
     if (!targetItem.project?.group_id && !sourceItem.project?.group_id) {
       return "create_group";

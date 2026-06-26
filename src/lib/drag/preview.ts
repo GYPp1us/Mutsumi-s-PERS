@@ -175,14 +175,18 @@ function previewProject(
   } else {
     // zone === "onto"
     if (targetProject.group_id) {
-      // 目标有分组 → 源加入该分组
       newGroupId = targetProject.group_id;
-      insertAt = ti + 1;
-      // 扩展 insertAt 到分组末尾（跳过同组的后续项目）
-      const gid = newGroupId;
-      for (let i = ti + 1; i < preview.length; i++) {
-        if (preview[i].group_id === gid) insertAt = i + 1;
-        else break;   // 遇到不同分组或无分组 → 停止
+      // 同组内 onto → 插到目标后即可，不扩展至组尾
+      if (preview[si].group_id === targetProject.group_id) {
+        insertAt = ti + 1;
+      } else {
+        // 跨组 onto → 源加入该组，排到组尾
+        insertAt = ti + 1;
+        const gid = newGroupId;
+        for (let i = ti + 1; i < preview.length; i++) {
+          if (preview[i].group_id === gid) insertAt = i + 1;
+          else break;
+        }
       }
     } else {
       // 目标无分组 → 源插入目标后，group_id 不变（松手时建新组）

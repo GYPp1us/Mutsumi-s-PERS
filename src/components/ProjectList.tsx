@@ -183,25 +183,18 @@ export function ProjectList() {
     const h = handleRef.current;
     if (!h.active || !h.sourceId) return;
 
-    const sourceIdx = displayTree.findIndex((it) => it.id === h.sourceId);
-    if (sourceIdx < 0) return;
-
     const ct = containerTopRef.current;
     const st = listRef.current?.scrollTop ?? 0;
     const contentY = pointerY - ct + st;
 
     console.log(
       "[DRAG-FRAME]",
-      `py=${pointerY.toFixed(0)}`,
-      `ct=${ct.toFixed(0)}`,
-      `st=${st}`,
-      `cY=${contentY.toFixed(0)}`,
-      `srcIdx=${sourceIdx}`,
-      `treeLen=${displayTree.length}`,
+      `py=${pointerY.toFixed(0)}`, `ct=${ct.toFixed(0)}`, `st=${st}`,
+      `cY=${contentY.toFixed(0)}`, `treeLen=${displayTree.length}`,
     );
 
     const resolved = resolveTargetFromSnapshot(
-      heightMapRef.current, displayTree, pointerY, ct, st, sourceIdx
+      heightMapRef.current, displayTree, pointerY, ct, st, h.sourceId
     );
 
     console.log(
@@ -219,7 +212,9 @@ export function ProjectList() {
 
     const { targetId, targetIdx, zone } = resolved;
     const targetItem = itemMap.get(targetId) ?? null;
-    const ontoGroupId = deriveOntoGroupId(zone, targetItem);
+    const snap = snapRef.current;
+    const srcGroupId = snap.sourceItem?.project?.group_id ?? snap.sourceItem?.groupId ?? null;
+    const ontoGroupId = deriveOntoGroupId(zone, targetItem, srcGroupId);
 
     // 悬停折叠分组自动展开
     if (targetItem?.type === "group-header" && targetItem.groupCollapsed) {
@@ -236,7 +231,6 @@ export function ProjectList() {
       clearAutoExpandTimer();
     }
 
-    const snap = snapRef.current;
     if (snap.targetId === targetId && snap.zone === zone && snap.ontoGroupId === ontoGroupId) return;
 
     updSnap({ targetId, targetItem, targetIdx, zone, ontoGroupId });

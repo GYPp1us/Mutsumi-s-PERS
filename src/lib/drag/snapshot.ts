@@ -91,7 +91,7 @@ export function captureHeights(container: HTMLElement): HeightMap {
 //   pointerY      = dnd-kit 提供的指针视口 Y 坐标
 //   containerTop  = 列表容器在拖拽开始时的 getBoundingClientRect().top
 //   scrollTop     = 列表容器当前的 scrollTop
-//   sourceIdx     = 被拖拽元素在 displayTree 中的当前索引
+//   sourceId      = 被拖拽元素的 ID（用于自排斥，不依赖动态变化的索引）
 // ===========================================================================
 export function resolveTargetFromSnapshot(
   heights: HeightMap,
@@ -99,7 +99,7 @@ export function resolveTargetFromSnapshot(
   pointerY: number,
   containerTop: number,
   scrollTop: number,
-  sourceIdx: number
+  sourceId: string  // 用 ID 而非索引，避免预览树每帧重排导致索引跳变
 ): ResolvedTarget | null {
   // 视口坐标 → 内容空间偏移
   const contentY = pointerY - containerTop + scrollTop;
@@ -119,8 +119,8 @@ export function resolveTargetFromSnapshot(
       let zone: DragZone;
       if (item.type === "group-slot") {
         zone = "onto";
-      } else if (i === sourceIdx) {
-        zone = null; // 自己拖到自己
+      } else if (item.id === sourceId) {
+        zone = null; // 自己拖到自己（用 ID 比较，不受预览树重排影响）
       } else if (ratio < SWAP_THRESHOLD) {
         zone = "before";
       } else if (ratio > 1 - SWAP_THRESHOLD) {
