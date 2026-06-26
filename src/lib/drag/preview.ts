@@ -175,18 +175,18 @@ function previewProject(
   } else {
     // zone === "onto"
     if (targetProject.group_id) {
-      newGroupId = targetProject.group_id;
+      // 同组内 onto → 不移动预览（避免反馈循环导致振荡/漂移）
+      // 视觉反馈由 isOntoTarget 高亮提供，松手时走 reorder 路径
       if (preview[si].group_id === targetProject.group_id) {
-        // 同组 onto → 源移到目标之后（组内重排）
-        insertAt = ti + 1;
-      } else {
-        // 跨组 onto → 源加入该组，排到组尾
-        insertAt = ti + 1;
-        const gid = newGroupId;
-        for (let i = ti + 1; i < preview.length; i++) {
-          if (preview[i].group_id === gid) insertAt = i + 1;
-          else break;
-        }
+        return baseTree(projects, groups, snap);
+      }
+      // 跨组 onto → 源加入该组，排到组尾
+      newGroupId = targetProject.group_id;
+      insertAt = ti + 1;
+      const gid = newGroupId;
+      for (let i = ti + 1; i < preview.length; i++) {
+        if (preview[i].group_id === gid) insertAt = i + 1;
+        else break;
       }
     } else {
       // 目标无分组 → 源插入目标后，group_id 不变（松手时建新组）

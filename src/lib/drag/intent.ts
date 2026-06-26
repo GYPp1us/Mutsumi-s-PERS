@@ -108,6 +108,19 @@ export async function executeIntent(
 
   // ─── reorder: 平级排序交换 ───
   if (intent === "reorder") {
+    // 同组 onto: 预览树不反映顺序（避免反馈循环），自行计算最终顺序
+    if (zone === "onto" && sourceItem?.project?.group_id && sourceItem.project.group_id === targetItem?.project?.group_id) {
+      const order = projects.map((p) => p.id);
+      const si = order.indexOf(sourceId);
+      const ti = order.indexOf(targetId);
+      if (si !== -1 && ti !== -1) {
+        order.splice(si, 1);
+        order.splice(si < ti ? ti : ti + 1, 0, sourceId);
+      }
+      cbs.reorderAll(order);
+      return;
+    }
+
     const sp = projects.find((p) => p.id === sourceId);     // 源项目
     const newIdx = previewTree.findIndex((it) => it.id === sourceId);
     const enclosing = findEnclosingGroup(previewTree, newIdx); // 新位置所在分组

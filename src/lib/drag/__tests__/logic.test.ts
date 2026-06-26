@@ -238,7 +238,7 @@ describe("computeDragPreview", () => {
     expect(bIdx).toBeLessThan(aIdx);
   });
 
-  it("同组 onto 预览 → 源插入目标之后（组内重排）", () => {
+  it("同组 onto 预览 → 不动源（消除反馈循环），仅靠高亮反馈", () => {
     const tree = buildTree(mockProjects, mockGroups);
     const snap = makeSnap({
       sourceId: A, sourceItem: tree[ti(tree, A)],
@@ -247,13 +247,8 @@ describe("computeDragPreview", () => {
     });
     const preview = computeDragPreview(mockProjects, mockGroups, snap);
     const projIds = preview.filter((it) => it.type === "project").map((it) => it.id);
-    const aIdx = projIds.indexOf(A);
-    const bIdx = projIds.indexOf(B);
-    // A 在同组内，onto → 排在 B 之后
-    expect(aIdx).toBeGreaterThan(bIdx);
-    // 不应排到组尾（C 在 G2，A 仍应在 G1 → B-C 之间）
-    const cIdx = projIds.indexOf(C);
-    expect(aIdx).toBeLessThan(cIdx);
+    // 同组 onto → 预览树不变，源保持原位
+    expect(projIds).toEqual([A, B, C, D]);
   });
 
   it("分组头拖拽 → 整组 block 移动", () => {
