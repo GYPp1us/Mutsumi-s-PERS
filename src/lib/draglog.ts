@@ -10,7 +10,7 @@ export const log = {
   dragStart: (sourceId: string, sourceIdx: number, sourceGroup: string | null | undefined, flatTreeSnapshot: { id: string; type: string; gid?: string | null }[]) =>
     devLog("START", { sourceId, sourceIdx, sourceGroup, tree: flatTreeSnapshot }),
 
-  dragOverTarget: (method: "sortable" | "point", targetId: string, targetType: string | undefined, zone: string | null, ontoGroupId: string | null, yRatio: number) =>
+  dragOverTarget: (method: "sortable" | "point" | "snapshot", targetId: string, targetType: string | undefined, zone: string | null, ontoGroupId: string | null, yRatio: number) =>
     devLog("OVER_TARGET", { method, targetId, targetType, zone, ontoGroupId, yRatio }),
 
   dragOverNull: () =>

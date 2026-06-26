@@ -103,6 +103,10 @@ export function ProjectList() {
   const heightMapRef = useRef<HeightMap>(new Map());
   const containerTopRef = useRef<number>(0);
 
+  // activeDragRef: 在 handleDragStart 中立即写入，不被 React 渲染周期延迟
+  // handleDragOver 在渲染之前就能读到 sourceId，避免早退
+  const activeDragRef = useRef<{ sourceId: string } | null>(null);
+
   const isDragging = dragSnap.phase === "dragging";
 
   // ─── displayTree: 核心派生数据 ───
@@ -197,6 +201,9 @@ export function ProjectList() {
       containerTopRef.current = listRef.current.getBoundingClientRect().top;
     }
 
+    // 立即记录 sourceId（不等 React 渲染），确保 handleDragOver 可读
+    activeDragRef.current = { sourceId };
+
     const item = itemMap.get(sourceId);
     const idx = displayTree.findIndex((it) => it.id === sourceId);
     const srcGroup = item?.type === "project" ? item.project?.group_id : item?.groupId;
@@ -215,11 +222,14 @@ export function ProjectList() {
   // ─── handleDragOver: 拖拽经过（每帧触发） ───
   // eslint-disable-next-line @typescript-eslint/no-explicit-any
   const handleDragOver = useCallback((e: any) => {
-    const snap = snapRef.current;
-    if (!snap.sourceId || snap.sourceIdx < 0) return;
+    // 用 activeDragRef 而非 snapRef: 不受 React 渲染延迟影响
+    const drag = activeDragRef.current;
+    if (!drag) return;
 
     const pointerY: number | undefined = e.operation?.position?.y;
     if (pointerY === undefined) return;
+
+    const sourceIdx = displayTree.findIndex((it) => it.id === drag.sourceId);
 
     // 纯数学推算: 用快照高度 + 预览树顺序计算命中目标
     const resolved = resolveTargetFromSnapshot(
@@ -228,17 +238,23 @@ export function ProjectList() {
       pointerY,
       containerTopRef.current,
       listRef.current?.scrollTop ?? 0,
-      displayTree.findIndex((it) => it.id === snap.sourceId)
+      sourceIdx
     );
 
     if (!resolved) {
       clearAutoExpandTimer();
+      log.dragOverNull();
       updSnap({ targetId: null, targetItem: null, targetIdx: -1, zone: null, ontoGroupId: null });
       return;
     }
 
     const { targetId, targetIdx, zone } = resolved;
     const targetItem = itemMap.get(targetId) ?? null;
+
+    log.dragOverTarget("snapshot", targetId, targetItem?.type, zone,
+      deriveOntoGroupId(zone, targetItem),
+      // ratio 不再从 DOM 取，用 0 占位
+      0);
 
     // deriveOntoGroupId: 推导目标分组 ID（用于高亮和 badge）
     const ontoGroupId = deriveOntoGroupId(zone, targetItem);
@@ -259,6 +275,7 @@ export function ProjectList() {
     }
 
     // 避免无意义的 setState（如果数据没变，跳过）
+    const snap = snapRef.current;
     if (snap.targetId === targetId && snap.zone === zone && snap.ontoGroupId === ontoGroupId) return;
 
     updSnap({ targetId, targetItem, targetIdx, zone, ontoGroupId });
@@ -268,6 +285,7 @@ export function ProjectList() {
   const handleDragEnd = useCallback(() => {
     const snap = snapRef.current;
     clearAutoExpandTimer();
+    activeDragRef.current = null;  // 清除拖拽源标记
 
     // 有效拖拽: 有源 + 有目标 + 有 zone → 执行 executeIntent
     if (snap.phase === "dragging" && snap.sourceId && snap.targetId && snap.zone) {
