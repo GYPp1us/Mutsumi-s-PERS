@@ -147,7 +147,26 @@ export function ProjectList() {
     return map;
   }, [displayTree, filter]);
 
-  // ─── updSnap ───
+  // ─── 高度快照补漏: displayTree 新增元素时补入 heightMap ───
+  // 拖拽开始后 group-slot 和自动展开的项目才进入 DOM，需要追加高度
+  useEffect(() => {
+    if (!isDragging) return;
+    const container = listRef.current;
+    if (!container) return;
+    const map = heightMapRef.current;
+    let changed = false;
+    for (const item of displayTree) {
+      if (map.has(item.id)) continue;
+      if (item.type === "group-slot") {
+        map.set(item.id, 42);           // 40px + 2px margin (GroupSlotItem)
+        changed = true;
+      } else {
+        const el = container.querySelector<HTMLElement>(`[data-dnd-item-id="${item.id}"]`);
+        if (el) { map.set(item.id, el.getBoundingClientRect().height); changed = true; }
+      }
+    }
+    if (changed) heightMapRef.current = new Map(map);  // 触发 ref 不变但内容已更新
+  }, [displayTree, isDragging]);
   const updSnap = useCallback((patch: Partial<DragSnapshot>) => {
     setDragSnap((prev) => {
       const next = { ...prev, ...patch };
@@ -320,6 +339,11 @@ export function ProjectList() {
     return () => {
       window.removeEventListener("pointermove", onMove);
       window.removeEventListener("pointerup", onUp);
+      // 清理长按计时器，防止组件卸载后触发 setState
+      if (handleRef.current.timer) {
+        clearTimeout(handleRef.current.timer);
+        handleRef.current.timer = null;
+      }
     };
   }, [displayTree, projects, groups, processDragFrame, reorderAll, batchMoveAndReorder, createGroup, toggleGroup, t]);
 
