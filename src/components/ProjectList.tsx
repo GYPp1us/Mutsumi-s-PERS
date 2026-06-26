@@ -90,8 +90,9 @@ export function ProjectList() {
     sourceId: null, startX: 0, startY: 0, pointerId: -1, timer: null, active: false,
   });
 
-  // 浮卡位置
-  const [overlayPos, setOverlayPos] = useState<{ x: number; y: number } | null>(null);
+  // 浮卡位置 (X 轴锁死在拖拽起点，仅 Y 随指针)
+  const [overlayY, setOverlayY] = useState<number | null>(null);
+  const overlayXRef = useRef<number>(0);
 
   // 快照 refs
   const heightMapRef = useRef<HeightMap>(new Map());
@@ -187,9 +188,27 @@ export function ProjectList() {
 
     const ct = containerTopRef.current;
     const st = listRef.current?.scrollTop ?? 0;
+    const contentY = pointerY - ct + st;
+
+    console.log(
+      "[DRAG-FRAME]",
+      `py=${pointerY.toFixed(0)}`,
+      `ct=${ct.toFixed(0)}`,
+      `st=${st}`,
+      `cY=${contentY.toFixed(0)}`,
+      `srcIdx=${sourceIdx}`,
+      `treeLen=${displayTree.length}`,
+    );
 
     const resolved = resolveTargetFromSnapshot(
       heightMapRef.current, displayTree, pointerY, ct, st, sourceIdx
+    );
+
+    console.log(
+      "[DRAG-RESOLVE]",
+      resolved
+        ? `hit=${resolved.targetId.slice(0, 8)} zone=${resolved.zone} idx=${resolved.targetIdx}`
+        : "null",
     );
 
     if (!resolved) {
@@ -273,7 +292,8 @@ export function ProjectList() {
         targetId: null, targetItem: null, targetIdx: -1, zone: null, ontoGroupId: null,
       });
 
-      setOverlayPos({ x: h2.startX, y: h2.startY });
+      setOverlayY(h2.startY);
+      overlayXRef.current = h2.startX;
       h2.timer = null;
 
       // 捕获指针 (确保 pointermove/up 事件继续到达)
@@ -302,8 +322,8 @@ export function ProjectList() {
         return;
       }
 
-      // 激活拖拽中: 更新浮卡 + 处理帧
-      setOverlayPos({ x: e.clientX, y: e.clientY });
+      // 激活拖拽中: 更新浮卡 Y + 处理帧
+      setOverlayY(e.clientY);
       processDragFrame(e.clientY);
     };
 
@@ -330,7 +350,7 @@ export function ProjectList() {
       h.active = false;
       h.sourceId = null;
       h.pointerId = -1;
-      setOverlayPos(null);
+      setOverlayY(null);
       setDragSnap(createEmptySnapshot());
     };
 
@@ -418,10 +438,10 @@ export function ProjectList() {
         </div>
       </aside>
 
-      {/* 浮卡: 固定定位替代 DragOverlay */}
-      {overlayPos && activeItem && (
+      {/* 浮卡: X 锁死在拖拽起点，仅 Y 跟随指针 */}
+      {overlayY !== null && activeItem && (
         <div style={{
-          position: "fixed", left: overlayPos.x + 12, top: overlayPos.y + 8,
+          position: "fixed", left: overlayXRef.current + 12, top: overlayY + 8,
           zIndex: 9999, pointerEvents: "none",
         }}>
           <OverlayCard item={activeItem} ontoGroupId={dragSnap.ontoGroupId} dragZone={dragSnap.zone}
