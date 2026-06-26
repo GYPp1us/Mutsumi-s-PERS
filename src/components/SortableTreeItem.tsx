@@ -48,7 +48,8 @@ export function SortableTreeItem({
 }: SortableTreeItemProps) {
 
   // disabled = true 时: 元素仍可被拖拽，但不会参与 dnd-kit 自动重排
-  const disabled = !visible || filterActive;
+  // disabled = true: 禁掉 dnd-kit 的 sortable 自动重排，让我们的状态机接管
+  const disabled = true;
 
   const { ref, handleRef, isDragSource } = useSortable({
     id, index, disabled,

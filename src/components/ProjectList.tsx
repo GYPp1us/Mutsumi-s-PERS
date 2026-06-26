@@ -191,6 +191,7 @@ export function ProjectList() {
   // ─── handleDragStart: 拖拽开始 ───
   // eslint-disable-next-line @typescript-eslint/no-explicit-any
   const handleDragStart = useCallback((e: any) => {
+    console.log("[DRAG-START] called, source:", e.operation?.source?.id);
     const sourceId = e.operation?.source?.id;  // dnd-kit 事件: 被拖拽项的 ID
     if (!sourceId) return;
     clearAutoExpandTimer();
@@ -228,7 +229,7 @@ export function ProjectList() {
   // ─── handleDragOver: 拖拽经过（每帧触发） ───
   // eslint-disable-next-line @typescript-eslint/no-explicit-any
   const handleDragOver = useCallback((e: any) => {
-    // 用 activeDragRef 而非 snapRef: 不受 React 渲染延迟影响
+    console.log("[DRAG-OVER] called, hasPosition:", !!e.operation?.position);
     const drag = activeDragRef.current;
     if (!drag) return;
 
