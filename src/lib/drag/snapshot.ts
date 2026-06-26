@@ -35,20 +35,35 @@ export interface ResolvedTarget {
 // ===========================================================================
 // captureHeights(container) → HeightMap
 //
-// 遍历容器内所有带 data-dnd-item-id 属性的 DOM 元素，
-// 记录每个元素的当前高度。
-//
-// 注意: 隐藏元素（不可见占位）的高度为 0，
-//       在后续累加时会自然跳过，不影响命中判断。
+// 遍历容器内所有带 data-dnd-item-id 属性的 DOM 元素，按实际视觉位置排序。
+// 每个元素的"有效高度" = 与下一个元素的 top 间距，
+// 这样 margin / gap 都自动包含在内，不会累积漂移。
+// 最后一个元素：用自己的 border-box 高度。
 // ===========================================================================
 export function captureHeights(container: HTMLElement): HeightMap {
   const map: HeightMap = new Map();
+
+  // 1. 收集所有元素的 id / top / height
+  const entries: { id: string; top: number; height: number }[] = [];
   container.querySelectorAll<HTMLElement>("[data-dnd-item-id]").forEach((el) => {
     const id = el.getAttribute("data-dnd-item-id");
     if (id) {
-      map.set(id, el.getBoundingClientRect().height);
+      const rect = el.getBoundingClientRect();
+      entries.push({ id, top: rect.top, height: rect.height });
     }
   });
+
+  // 2. 按视觉位置排序（处理渲染顺序与 DOM 顺序一致的情况）
+  entries.sort((a, b) => a.top - b.top);
+
+  // 3. 用相邻间距作为"有效高度"（自动包含 margin）
+  for (let i = 0; i < entries.length; i++) {
+    const effectiveHeight = i < entries.length - 1
+      ? entries[i + 1].top - entries[i].top   // 当前元素顶到下一个元素顶
+      : entries[i].height;                     // 最后一个: 用自身高度
+    map.set(entries[i].id, effectiveHeight);
+  }
+
   return map;
 }
 
