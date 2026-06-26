@@ -11,4 +11,8 @@ export default defineConfig({
     strictPort: true,
   },
   envPrefix: ["VITE_", "TAURI_"],
+  // vitest 配置
+  test: {
+    setupFiles: ["./src/lib/drag/__tests__/setup.ts"],
+  },
 });
