@@ -1,10 +1,10 @@
 import { vi } from "vitest";
 
-// 模拟 localStorage（Zustand store 初始化时用到）
+const store: Record<string, string> = {};
+
 vi.stubGlobal("localStorage", {
-  _data: {} as Record<string, string>,
-  getItem(key: string) { return this._data[key] ?? null; },
-  setItem(key: string, value: string) { this._data[key] = value; },
-  removeItem(key: string) { delete this._data[key]; },
-  clear() { this._data = {}; },
+  getItem(key: string) { return store[key] ?? null; },
+  setItem(key: string, value: string) { store[key] = value; },
+  removeItem(key: string) { delete store[key]; },
+  clear() { for (const k of Object.keys(store)) delete store[k]; },
 });

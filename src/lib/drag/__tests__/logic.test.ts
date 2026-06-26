@@ -103,8 +103,6 @@ describe("resolveIntent", () => {
   });
 
   it("无分组 onto 无分组 → create_group", () => {
-    const tree = buildTree(mockProjects, mockGroups);
-    // 需要一个额外的无分组项目作为源
     const extraProj = p("e", null, "extra");
     const projects2 = [...mockProjects, extraProj];
     const tree2 = buildTree(projects2, mockGroups);
@@ -240,7 +238,7 @@ describe("computeDragPreview", () => {
     expect(bIdx).toBeLessThan(aIdx);
   });
 
-  it("同组 onto 预览 → 源插入目标之后（组内），不跑到组尾", () => {
+  it("同组 onto 预览 → 不动源（消除反馈循环），仅靠高亮反馈", () => {
     const tree = buildTree(mockProjects, mockGroups);
     const snap = makeSnap({
       sourceId: A, sourceItem: tree[ti(tree, A)],
@@ -249,13 +247,8 @@ describe("computeDragPreview", () => {
     });
     const preview = computeDragPreview(mockProjects, mockGroups, snap);
     const projIds = preview.filter((it) => it.type === "project").map((it) => it.id);
-    const aIdx = projIds.indexOf(A);
-    const bIdx = projIds.indexOf(B);
-    // A 在同组内，onto → 排在 B 之后
-    expect(aIdx).toBeGreaterThan(bIdx);
-    // 但不应排到组尾（C 在 G2，A 应仍在 G1 内且在 B-C 之间）
-    const cIdx = projIds.indexOf(C);
-    expect(aIdx).toBeLessThan(cIdx);
+    // 同组 onto → 预览树不变，源保持原位
+    expect(projIds).toEqual([A, B, C, D]);
   });
 
   it("分组头拖拽 → 整组 block 移动", () => {
@@ -293,7 +286,6 @@ describe("resolveTargetFromSnapshot", () => {
 
   it("指针在第一个项目顶部 → before", () => {
     const tree = buildTree(mockProjects, mockGroups);
-    const firstProj = tree.find((it) => it.type === "project")!;
     const heights = makeHeights(tree);
     const result = resolveTargetFromSnapshot(heights, tree, 100, 100, 0, "none");
     expect(result).not.toBeNull();

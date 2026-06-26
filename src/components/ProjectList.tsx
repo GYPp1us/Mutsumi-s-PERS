@@ -27,6 +27,7 @@ import {
   useFlipAnimation,
   captureHeights,
   resolveTargetFromSnapshot,
+  makeZoneTree,
 } from "../lib/drag";
 import type { DragSnapshot, HeightMap } from "../lib/drag";
 
@@ -193,8 +194,10 @@ export function ProjectList() {
       `cY=${contentY.toFixed(0)}`, `treeLen=${displayTree.length}`,
     );
 
+    // zone 判定使用固定树（无预览重排），避免反馈循环
+    const zoneTree = makeZoneTree(projects, groups, h.sourceId);
     const resolved = resolveTargetFromSnapshot(
-      heightMapRef.current, displayTree, pointerY, ct, st, h.sourceId
+      heightMapRef.current, zoneTree, pointerY, ct, st, h.sourceId
     );
 
     console.log(
@@ -234,7 +237,7 @@ export function ProjectList() {
     if (snap.targetId === targetId && snap.zone === zone && snap.ontoGroupId === ontoGroupId) return;
 
     updSnap({ targetId, targetItem, targetIdx, zone, ontoGroupId });
-  }, [displayTree, itemMap, updSnap, toggleGroup]);
+  }, [displayTree, itemMap, updSnap, toggleGroup, projects, groups]);
 
   // ========================================================================
   // pointerdown → 启动长按检测

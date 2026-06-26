@@ -18,6 +18,8 @@
 // ============================================================================
 
 import type { TreeItem } from "../store";
+import { buildTree } from "../store";
+import type { Project, GroupInfo } from "../tauri";
 import type { DragZone } from "./state";
 import { SWAP_THRESHOLD } from "./state";
 
@@ -138,4 +140,38 @@ export function resolveTargetFromSnapshot(
 
   // 指针在所有元素之外
   return null;
+}
+
+// ===========================================================================
+// makeZoneTree(projects, groups, sourceId) → TreeItem[]
+//
+// 构建 zone 判定用的固定树（无预览重排），仅注入 group-slot。
+// 与 computeDragPreview 的渲染树解耦，消除同组 onto 的反馈循环。
+// ===========================================================================
+export function makeZoneTree(
+  projects: Project[],
+  groups: GroupInfo[],
+  sourceId: string | null
+): TreeItem[] {
+  const tree = buildTree(projects, groups);
+  if (!sourceId) return tree;
+
+  const sourceProject = projects.find((p) => p.id === sourceId);
+  if (!sourceProject?.group_id) return tree;
+
+  const g = groups.find((grp) => grp.id === sourceProject.group_id);
+  if (!g || g.collapsed) return tree;
+
+  let lastIdx = -1;
+  for (let i = 0; i < tree.length; i++) {
+    if (tree[i].project?.group_id === sourceProject.group_id) lastIdx = i;
+  }
+  if (lastIdx >= 0) {
+    tree.splice(lastIdx + 1, 0, {
+      type: "group-slot",
+      id: `slot-${sourceProject.group_id}`,
+      groupId: sourceProject.group_id,
+    });
+  }
+  return tree;
 }
