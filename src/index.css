@@ -170,3 +170,22 @@ button {
   from { opacity: 0; transform: scaleX(0.8); }
   to { opacity: 1; transform: scaleX(1); }
 }
+
+.drop-line {
+  position: absolute;
+  left: 0;
+  right: 0;
+  height: 2px;
+  background: var(--color-primary-fg);
+  z-index: 10;
+  pointer-events: none;
+  animation: drop-line-in 0.15s ease-out forwards;
+}
+
+.drop-line-top {
+  top: -1px;
+}
+
+.drop-line-bottom {
+  bottom: -1px;
+}

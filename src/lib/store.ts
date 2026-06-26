@@ -1,6 +1,7 @@
 import { create } from "zustand";
 import type { Project, Settings, TemplateInfo, TemplateFile, GroupInfo } from "./tauri";
 import * as api from "./tauri";
+import { log } from "./draglog";
 
 export type ToastType = "success" | "error" | "info";
 
@@ -13,7 +14,7 @@ export interface Toast {
 export type NavView = "home" | "templates";
 
 export interface TreeItem {
-  type: "project" | "group-header";
+  type: "project" | "group-header" | "group-slot";
   id: string;
   project?: Project;
   groupId?: string;
@@ -58,7 +59,7 @@ interface AppStore {
   toggleGroup: (id: string, collapsed: boolean) => Promise<void>;
   moveToGroup: (projectId: string, groupId: string | null) => Promise<void>;
   reorderAll: (projectIds: string[]) => void;
-  batchMoveAndReorder: (groupChanges: { projectId: string; groupId: string | null }[], finalOrder: string[]) => void;
+  batchMoveAndReorder: (groupChanges: { projectId: string; groupId: string | null }[], finalOrder: string[]) => Promise<void>;
   createTemplate: (name: string, description: string, files: TemplateFile[]) => Promise<void>;
   removeTemplate: (name: string) => Promise<void>;
   pinned: boolean;
@@ -143,6 +144,97 @@ export function buildTree(projects: Project[], groups: GroupInfo[]): TreeItem[] 
   return result;
 }
 
+export function buildDynamicTree(
+  projects: Project[],
+  groups: GroupInfo[],
+  isDragging: boolean,
+  sourceGroupId: string | null
+): TreeItem[] {
+  const base = buildTree(projects, groups);
+  if (!isDragging || !sourceGroupId) return base;
+
+  const g = groups.find((grp) => grp.id === sourceGroupId);
+  if (!g || g.collapsed) return base;
+
+  const result: TreeItem[] = [];
+  let inSourceGroup = false;
+  let lastSourceGroupProjectIdx = -1;
+
+  for (let i = 0; i < base.length; i++) {
+    const item = base[i];
+    result.push(item);
+
+    if (item.type === "group-header") {
+      inSourceGroup = item.groupId === sourceGroupId;
+    } else if (inSourceGroup && item.type === "project" && item.project?.group_id === sourceGroupId) {
+      lastSourceGroupProjectIdx = result.length - 1;
+    }
+  }
+
+  if (lastSourceGroupProjectIdx >= 0) {
+    result.splice(lastSourceGroupProjectIdx + 1, 0, {
+      type: "group-slot" as const,
+      id: `slot-${sourceGroupId}`,
+      groupId: sourceGroupId,
+    });
+  }
+
+  return result;
+}
+
+export function computeFinalOrder(flatTree: TreeItem[], projects: Project[]): string[] {
+  const ids: string[] = [];
+  const mapped = new Set<string>();
+  for (const it of flatTree) {
+    if (it.type === "group-slot") continue;
+    if (it.type === "project" && !mapped.has(it.id)) {
+      ids.push(it.id);
+      mapped.add(it.id);
+    } else if (it.type === "group-header" && it.groupId) {
+      const gprojs = projects.filter((p) => p.group_id === it.groupId).map((p) => p.id);
+      for (const pid of gprojs) {
+        if (!mapped.has(pid)) { ids.push(pid); mapped.add(pid); }
+      }
+    }
+  }
+  for (const p of projects) {
+    if (!mapped.has(p.id)) ids.push(p.id);
+  }
+  return ids;
+}
+
+export function findEnclosingGroup(flatTree: TreeItem[], fromIndex: number): string | null {
+  for (let i = fromIndex - 1; i >= 0; i--) {
+    if (flatTree[i].type === "group-header") return flatTree[i].groupId!;
+  }
+  return null;
+}
+
+export function normalizeGroupOrder(projects: Project[]): Project[] {
+  const order: Project[] = [];
+  const seen = new Set<string>();
+
+  for (const p of projects) {
+    if (seen.has(p.id)) continue;
+    if (!p.group_id) {
+      order.push(p);
+      seen.add(p.id);
+    } else {
+      const gid = p.group_id;
+      for (const gp of projects) {
+        if (gp.group_id === gid && !seen.has(gp.id)) {
+          order.push(gp);
+          seen.add(gp.id);
+        }
+      }
+    }
+  }
+  for (const p of projects) {
+    if (!seen.has(p.id)) order.push(p);
+  }
+  return order;
+}
+
 export const useAppStore = create<AppStore>((set, get) => ({
   projects: [],
   groups: [],
@@ -163,7 +255,7 @@ export const useAppStore = create<AppStore>((set, get) => ({
   loadProjects: async () => {
     try {
       const projects = await api.listProjects();
-      set({ projects });
+      set({ projects: normalizeGroupOrder(projects) });
     } catch (e) {
       console.error("Failed to load projects:", e);
     }
@@ -285,16 +377,20 @@ export const useAppStore = create<AppStore>((set, get) => ({
     const idSet = new Set(projectIds);
     const ordered = projectIds.map((id) => prevProjects.find((p) => p.id === id)!).filter(Boolean);
     const remaining = prevProjects.filter((p) => !idSet.has(p.id));
-    set({ projects: [...ordered, ...remaining] });
+    const finalProjects = [...ordered, ...remaining];
+    set({ projects: finalProjects });
     try {
-      await api.reorderAll(projectIds);
+      await api.reorderAll(finalProjects.map((p) => p.id));
+      log.api("REORDER", { order: finalProjects.map((p) => p.id) }, true);
     } catch (e) {
       set({ projects: prevProjects });
+      log.api("ERROR", { error: String(e) }, false);
+      log.rollback(String(e), prevProjects);
       console.error("Failed to persist order:", e);
     }
   },
 
-  batchMoveAndReorder: (groupChanges: { projectId: string; groupId: string | null }[], finalOrder: string[]) => {
+  batchMoveAndReorder: async (groupChanges: { projectId: string; groupId: string | null }[], finalOrder: string[]) => {
     const prevProjects = [...get().projects];
     const changes = new Map(groupChanges.map((c) => [c.projectId, c.groupId]));
 
@@ -305,14 +401,24 @@ export const useAppStore = create<AppStore>((set, get) => ({
     const idSet = new Set(finalOrder);
     const ordered = finalOrder.map((id) => updated.find((p) => p.id === id)!).filter(Boolean);
     const remaining = updated.filter((p) => !idSet.has(p.id));
-    const finalProjects = [...ordered, ...remaining];
+    const finalProjects = normalizeGroupOrder([...ordered, ...remaining]);
 
+    log.normalize([...ordered, ...remaining], finalProjects);
     set({ projects: finalProjects });
 
-    for (const { projectId, groupId } of groupChanges) {
-      api.setProjectGroup(projectId, groupId).catch((e) => console.error("batch: setProjectGroup failed", e));
+    try {
+      for (const { projectId, groupId } of groupChanges) {
+        await api.setProjectGroup(projectId, groupId);
+        log.api("SET_GROUP", { projectId, groupId }, true);
+      }
+      await api.reorderAll(finalProjects.map((p) => p.id));
+      log.api("REORDER", { order: finalProjects.map((p) => p.id) }, true);
+    } catch (e) {
+      set({ projects: prevProjects });
+      log.api("ERROR", { error: String(e) }, false);
+      log.rollback(String(e), prevProjects);
+      console.error("batchMoveAndReorder: rollback", e);
     }
-    api.reorderAll(finalOrder).catch((e) => console.error("batch: reorderAll failed", e));
   },
 
   createTemplate: async (name, description, files) => {
@@ -328,7 +434,7 @@ export const useAppStore = create<AppStore>((set, get) => ({
   togglePin: async () => {
     const next = !get().pinned;
     set({ pinned: next });
-    try { await api.setPinned(next); } catch {}
+    try { await api.setPinned(next); } catch { /* ignore */ }
   },
 
   setPinnedState: (pinned) => {
