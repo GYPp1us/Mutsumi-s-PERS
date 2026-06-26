@@ -9,6 +9,5 @@ export type {
 export { computeDragPreview } from "./preview";
 export { computeZone, resolveTargetFromPoint, deriveOntoGroupId } from "./zone";
 export { resolveIntent, executeIntent } from "./intent";
-export { useFlipAnimation } from "./flip";
 export { captureHeights, resolveTargetFromSnapshot, makeZoneTree } from "./snapshot";
 export type { HeightMap, ResolvedTarget } from "./snapshot";

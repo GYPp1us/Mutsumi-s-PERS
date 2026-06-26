@@ -24,7 +24,6 @@ import {
   deriveOntoGroupId,
   resolveIntent,
   executeIntent,
-  useFlipAnimation,
   captureHeights,
   resolveTargetFromSnapshot,
   makeZoneTree,
@@ -115,9 +114,7 @@ export function ProjectList() {
     [displayTree]
   );
 
-  // FLIP 动画
   const listRef = useRef<HTMLDivElement>(null);
-  useFlipAnimation(listRef, displayTree);
 
   // ─── 辅助 ───
   const clearAutoExpandTimer = () => {
