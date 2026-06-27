@@ -19,7 +19,7 @@ import {
   executeIntent,
   captureHeights,
   buildDeterministicRows,
-  resolveStableTargetFromDeterministicRows,
+  resolveTargetFromOffsetLayout,
   BOTTOM_DROP_ID,
   makeZoneTree,
 } from "../lib/drag";
@@ -86,6 +86,7 @@ export function ProjectList() {
 
   const heightMapRef = useRef<HeightMap>(new Map());
   const containerTopRef = useRef<number>(0);
+  const contentOffsetTopRef = useRef<number>(0);
 
   const isDragging = dragSnap.phase === "dragging";
 
@@ -166,12 +167,6 @@ export function ProjectList() {
     const ct = containerTopRef.current;
     const st = listRef.current?.scrollTop ?? 0;
 
-    const contentY = pointerY - ct + st;
-    const rows = buildDeterministicRows({
-      tree: zoneTree,
-      measuredHeights: heightMapRef.current,
-      containerHeight: listRef.current?.clientHeight ?? 0,
-    });
     const previousSnap = snapRef.current;
     const previousTarget = previousSnap.targetId
       ? {
@@ -182,12 +177,17 @@ export function ProjectList() {
           kind: previousSnap.targetItem?.type ?? (previousSnap.targetId === BOTTOM_DROP_ID ? "bottom-drop" as const : "project" as const),
         }
       : null;
-    const resolved = resolveStableTargetFromDeterministicRows(
-      rows,
-      contentY,
-      h.sourceId,
-      previousTarget
-    );
+    const resolved = resolveTargetFromOffsetLayout({
+      tree: zoneTree,
+      measuredHeights: heightMapRef.current,
+      pointerY,
+      containerTop: ct,
+      scrollTop: st,
+      sourceId: h.sourceId,
+      containerHeight: listRef.current?.clientHeight ?? 0,
+      contentOffsetTop: contentOffsetTopRef.current,
+      previous: previousTarget,
+    });
 
     if (!resolved) {
       updSnap({ targetId: null, targetItem: null, targetIdx: -1, zone: null, ontoGroupId: null });
@@ -237,6 +237,15 @@ export function ProjectList() {
     if (listRef.current) {
       heightMapRef.current = captureHeights(listRef.current);
       containerTopRef.current = listRef.current.getBoundingClientRect().top;
+      const sourceIdx = zoneTree.findIndex((item) => item.id === itemId);
+      const sourceRows = buildDeterministicRows({
+        tree: zoneTree,
+        measuredHeights: heightMapRef.current,
+        containerHeight: listRef.current.clientHeight,
+      });
+      const sourceRowTop = sourceRows.find((row) => row.id === itemId)?.top ?? 0;
+      const sourceContentTop = rect.top - containerTopRef.current + listRef.current.scrollTop;
+      contentOffsetTopRef.current = sourceIdx >= 0 ? sourceContentTop - sourceRowTop : 0;
       const src = projects.find((p) => p.id === itemId);
       if (src?.group_id) {
         const g = groups.find((grp) => grp.id === src.group_id);

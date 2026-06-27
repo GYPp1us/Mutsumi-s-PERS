@@ -9,6 +9,7 @@ import {
   computeBottomDropPreview,
   computeDeterministicDragPreview,
   resolveTargetFromDeterministicRows,
+  resolveTargetFromOffsetLayout,
   resolveStableTargetFromDeterministicRows,
 } from "../deterministic";
 import { executeIntent, resolveIntent } from "../intent";
@@ -107,6 +108,34 @@ describe("deterministic drag rows", () => {
       targetId: "__bottom_drop__",
       zone: "after",
       kind: "bottom-drop",
+    });
+  });
+
+  it("subtracts non-draggable content above the first drag row before resolving targets", () => {
+    const tree = buildTree(projects, groups);
+    const heights = new Map(tree.map((it) => [it.id, 34]));
+
+    const hit = resolveTargetFromOffsetLayout({
+      tree,
+      measuredHeights: heights,
+      pointerY: 100 + 34 + 17,
+      containerTop: 100,
+      scrollTop: 0,
+      sourceId: D,
+      containerHeight: 320,
+      contentOffsetTop: 34,
+      previous: null,
+    });
+
+    expect(hit).toMatchObject({
+      targetId: G1,
+      zone: "onto",
+    });
+
+    const uncorrectedRows = buildDeterministicRows({ tree, measuredHeights: heights, containerHeight: 320 });
+    expect(resolveTargetFromDeterministicRows(uncorrectedRows, 51, D)).toMatchObject({
+      targetId: A,
+      zone: "onto",
     });
   });
 

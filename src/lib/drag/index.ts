@@ -19,6 +19,7 @@ export {
   resolveTargetFromDeterministicLayout,
   resolveTargetFromDeterministicRows,
   resolveStableTargetFromDeterministicRows,
+  resolveTargetFromOffsetLayout,
 } from "./deterministic";
 export type {
   DeterministicLayoutRow,

@@ -40,6 +40,15 @@ export interface DeterministicLayoutInput {
   bottomDropHeight?: number;
 }
 
+export interface OffsetLayoutTargetInput extends DeterministicLayoutInput {
+  pointerY: number;
+  containerTop: number;
+  scrollTop: number;
+  sourceId: string;
+  contentOffsetTop: number;
+  previous: DeterministicTarget | null;
+}
+
 const ZONE_HYSTERESIS = 0.06;
 
 export function estimateHeight(item: TreeItem): number {
@@ -191,6 +200,23 @@ export function resolveTargetFromDeterministicLayout(
   const contentY = pointerY - containerTop + scrollTop;
   const rows = buildDeterministicRows({ tree, measuredHeights, containerHeight });
   return resolveTargetFromDeterministicRows(rows, contentY, sourceId);
+}
+
+export function resolveTargetFromOffsetLayout({
+  tree,
+  measuredHeights,
+  pointerY,
+  containerTop,
+  scrollTop,
+  sourceId,
+  containerHeight = 0,
+  bottomDropHeight = DEFAULT_NODE_HEIGHTS.bottomDrop,
+  contentOffsetTop,
+  previous,
+}: OffsetLayoutTargetInput): DeterministicTarget | null {
+  const contentY = pointerY - containerTop + scrollTop - contentOffsetTop;
+  const rows = buildDeterministicRows({ tree, measuredHeights, containerHeight, bottomDropHeight });
+  return resolveStableTargetFromDeterministicRows(rows, contentY, sourceId, previous);
 }
 
 export function computeBottomDropPreview(
