@@ -13,6 +13,7 @@ import {
   resolveStableTargetFromDeterministicRows,
 } from "../deterministic";
 import { executeIntent, resolveIntent } from "../intent";
+import { makeZoneTree } from "../snapshot";
 
 const G1 = "g1";
 const G2 = "g2";
@@ -189,6 +190,64 @@ describe("deterministic drag rows", () => {
     const preview = computeDeterministicDragPreview(projects, groups, snap);
     expect(preview.map((it) => it.id)).toEqual([G2, C, D, G1]);
     expect(preview.find((it) => it.id === G1)?.groupItemCount).toBe(2);
+  });
+
+  it("uses the same collapsed source group block for group-header collision rows", () => {
+    const zoneTree = makeZoneTree(projects, groups, G1);
+    const rows = buildDeterministicRows({
+      tree: zoneTree,
+      measuredHeights: new Map([
+        [G1, 34],
+        [G2, 34],
+        [C, 52],
+        [D, 52],
+      ]),
+      containerHeight: 260,
+    });
+
+    expect(zoneTree.map((it) => it.id)).toEqual([G1, G2, C, D]);
+    expect(rows.find((row) => row.id === G2)).toMatchObject({ top: 34, bottom: 68 });
+    expect(resolveTargetFromDeterministicRows(rows, 51, G1)).toMatchObject({
+      targetId: G2,
+      zone: "onto",
+    });
+  });
+
+  it("downgrades cross-group project onto hits to an edge insertion zone", () => {
+    const tree = buildTree(projects, groups);
+    const heights = new Map(tree.map((it) => [it.id, 100]));
+    const targetRow = buildDeterministicRows({ tree, measuredHeights: heights })
+      .find((row) => row.id === C);
+    if (!targetRow) throw new Error("missing target row");
+
+    const topHalf = resolveTargetFromOffsetLayout({
+      tree,
+      measuredHeights: heights,
+      pointerY: targetRow.top + 45,
+      containerTop: 0,
+      scrollTop: 0,
+      sourceId: D,
+      contentOffsetTop: 0,
+      previous: null,
+    });
+    const bottomHalf = resolveTargetFromOffsetLayout({
+      tree,
+      measuredHeights: heights,
+      pointerY: targetRow.top + 55,
+      containerTop: 0,
+      scrollTop: 0,
+      sourceId: D,
+      contentOffsetTop: 0,
+      previous: null,
+    });
+
+    expect(resolveTargetFromDeterministicRows(
+      buildDeterministicRows({ tree, measuredHeights: heights }),
+      targetRow.top + 45,
+      D
+    )?.zone).toBe("onto");
+    expect(topHalf).toMatchObject({ targetId: C, zone: "before" });
+    expect(bottomHalf).toMatchObject({ targetId: C, zone: "after" });
   });
 
   it("does not change preview layout while hovering over a collapsed group header", () => {

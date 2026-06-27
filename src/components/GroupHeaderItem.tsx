@@ -43,6 +43,7 @@ export function GroupHeaderItem({
       background: highlight ? "var(--color-card)" : "transparent",
       opacity: isSource ? 0 : 1,
       borderLeft: item.groupColor ? `3px solid ${item.groupColor}` : "3px solid transparent",
+      borderTop: item.groupColor ? `1px solid ${item.groupColor}` : "1px solid transparent",
       boxShadow: highlight ? `inset 0 0 0 2px ${ontoColor}` : "none",
       userSelect: "none",
     }}>

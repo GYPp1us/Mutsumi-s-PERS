@@ -78,7 +78,7 @@ export function deriveOntoGroupId(
 ): string | null {
   if (!zone || !targetItem) return null;
 
-  if (targetItem.type === "group-slot") return targetItem.groupId || null;
+  if (targetItem.type === "group-slot") return null;
   if (targetItem.type === "group-header") return targetItem.groupId || null;
 
   let gid: string | null = null;

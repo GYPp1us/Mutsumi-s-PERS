@@ -216,7 +216,33 @@ export function resolveTargetFromOffsetLayout({
 }: OffsetLayoutTargetInput): DeterministicTarget | null {
   const contentY = pointerY - containerTop + scrollTop - contentOffsetTop;
   const rows = buildDeterministicRows({ tree, measuredHeights, containerHeight, bottomDropHeight });
-  return resolveStableTargetFromDeterministicRows(rows, contentY, sourceId, previous);
+  const resolved = resolveStableTargetFromDeterministicRows(rows, contentY, sourceId, previous);
+  if (!resolved || resolved.zone !== "onto" || resolved.targetItem?.type !== "project") {
+    return resolved;
+  }
+
+  const sourceItem = tree.find((item) => item.id === sourceId) ?? null;
+  if (shouldUseEdgeInsertionForGroupedTarget(sourceItem, resolved.targetItem)) {
+    const row = rows.find((candidate) => candidate.id === resolved.targetId);
+    if (!row) return resolved;
+    return {
+      ...resolved,
+      zone: contentY < row.top + row.height / 2 ? "before" : "after",
+    };
+  }
+
+  return resolved;
+}
+
+function shouldUseEdgeInsertionForGroupedTarget(
+  sourceItem: TreeItem | null,
+  targetItem: TreeItem
+): boolean {
+  if (sourceItem?.type !== "project" || targetItem.type !== "project") return false;
+  const targetGroupId = targetItem.project?.group_id ?? null;
+  if (!targetGroupId) return false;
+  const sourceGroupId = sourceItem.project?.group_id ?? null;
+  return sourceGroupId !== targetGroupId;
 }
 
 export function computeBottomDropPreview(

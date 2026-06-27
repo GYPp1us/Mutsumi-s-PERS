@@ -124,8 +124,45 @@ function injectSourceSlot(
       id: `slot-${sourceProject.group_id}`,
       groupId: sourceProject.group_id,
     });
+  } else if (projects.filter((project) => project.group_id === sourceProject.group_id).length === 1) {
+    const shell: TreeItem[] = [{
+      type: "group-header",
+      id: g.id,
+      groupId: g.id,
+      groupName: g.name,
+      groupColor: g.color,
+      groupCollapsed: g.collapsed,
+      groupItemCount: 1,
+    }, {
+      type: "group-slot",
+      id: `slot-${sourceProject.group_id}`,
+      groupId: sourceProject.group_id,
+    }];
+    const insertAt = findSourceGroupShellInsertIndex(result, projects, groups, sourceProject.group_id);
+    result.splice(insertAt, 0, ...shell);
   }
   return result;
+}
+
+function findSourceGroupShellInsertIndex(
+  result: TreeItem[],
+  projects: Project[],
+  groups: GroupInfo[],
+  sourceGroupId: string
+): number {
+  const original = buildTree(projects, groups);
+  const headerIndex = original.findIndex(
+    (item) => item.type === "group-header" && item.groupId === sourceGroupId
+  );
+  if (headerIndex <= 0) return 0;
+
+  for (let index = headerIndex - 1; index >= 0; index -= 1) {
+    const anchorId = original[index].id;
+    const resultIndex = result.findIndex((item) => item.id === anchorId);
+    if (resultIndex >= 0) return resultIndex + 1;
+  }
+
+  return 0;
 }
 
 // ===========================================================================

@@ -127,6 +127,7 @@ export function ProjectList() {
     }
     for (const item of displayTree) {
       if (item.type === "project" && item.project?.group_id && map.get(item.id)) emptyGroups.delete(item.project.group_id);
+      if (item.type === "group-slot" && item.groupId && map.get(item.id)) emptyGroups.delete(item.groupId);
     }
     for (const gid of emptyGroups) map.set(gid, false);
     return map;
@@ -274,7 +275,7 @@ export function ProjectList() {
     });
 
     try { (e.target as HTMLElement).setPointerCapture?.(e.pointerId); } catch { /* ignore */ }
-  }, [filter, itemMap, displayTree, projects, groups, updSnap]);
+  }, [filter, itemMap, displayTree, projects, groups, zoneTree, updSnap]);
 
   // ========================================================================
   useEffect(() => {
@@ -398,23 +399,20 @@ export function ProjectList() {
               style={{
                 height: BOTTOM_DROP_HEIGHT,
                 margin: "1px 8px",
-                border: dragSnap.targetId === BOTTOM_DROP_ID ? "1px solid var(--color-primary)" : "1px dashed transparent",
-                color: "var(--color-text-muted)",
+                border: "1px dashed transparent",
                 display: "flex",
                 alignItems: "center",
                 justifyContent: "center",
                 fontSize: 10,
-                opacity: dragSnap.targetId === BOTTOM_DROP_ID ? 0.8 : 0.25,
+                opacity: 0.25,
                 pointerEvents: "none",
               }}
-            >
-              {dragSnap.targetId === BOTTOM_DROP_ID ? "Drop at bottom" : ""}
-            </div>
+            />
           )}
         </div>
 
         <div style={{ padding: 8, borderTop: "1px solid var(--color-hover)", fontSize: 10, color: "var(--color-text-muted)", textAlign: "center" }}>
-          {isDragging ? "Drop to reorder / group" : t.projectCount(projects.length)}
+          {isDragging ? t.dragFooterHint : t.projectCount(projects.length)}
         </div>
       </aside>
 

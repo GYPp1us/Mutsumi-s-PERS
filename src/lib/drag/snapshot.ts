@@ -156,6 +156,15 @@ export function makeZoneTree(
   const tree = buildTree(projects, groups);
   if (!sourceId) return tree;
 
+  const sourceTreeItem = tree.find((item) => item.id === sourceId);
+  if (sourceTreeItem?.type === "group-header" && sourceTreeItem.groupId) {
+    const sourceGroupId = sourceTreeItem.groupId;
+    return tree.filter((item) => {
+      if (item.type !== "project") return true;
+      return item.project?.group_id !== sourceGroupId;
+    });
+  }
+
   const sourceProject = projects.find((p) => p.id === sourceId);
   if (!sourceProject?.group_id) return tree;
 

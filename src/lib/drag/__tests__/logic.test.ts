@@ -172,11 +172,10 @@ describe("deriveOntoGroupId", () => {
     expect(result).toBeNull();
   });
 
-  it("group-slot → 始终返回 slot 的 groupId（即使源在同组）", () => {
+  it("group-slot → null so drag-out does not highlight the source group", () => {
     const slotItem: TreeItem = { type: "group-slot", id: "slot-g1", groupId: G1 };
     const result = deriveOntoGroupId("onto", slotItem, G1);
-    // slot 不受同组抑制
-    expect(result).toBe(G1);
+    expect(result).toBeNull();
   });
 
   it("group-header → 返回分组 ID", () => {
@@ -212,6 +211,36 @@ describe("computeDragPreview", () => {
     const slots = preview.filter((it) => it.type === "group-slot");
     expect(slots.length).toBe(1);
     expect(slots[0].groupId).toBe(G1);
+  });
+
+  it("keeps a single-item source group header visible with its drag-out slot", () => {
+    const singleGroupProjects = [p(A, G1), p(D, null)];
+    const tree = buildTree(singleGroupProjects, mockGroups);
+    const snap = makeSnap({
+      sourceId: A,
+      sourceItem: tree[ti(tree, A)],
+      targetId: D,
+      targetItem: tree[ti(tree, D)],
+      zone: "after",
+    });
+
+    const preview = computeDragPreview(singleGroupProjects, mockGroups, snap);
+    expect(preview.map((it) => it.id)).toEqual([G1, "slot-g1", D, A]);
+  });
+
+  it("keeps an emptied single-item source group at its original visual position", () => {
+    const singleGroupProjects = [p(D, null), p(A, G1), p("e", null)];
+    const tree = buildTree(singleGroupProjects, mockGroups);
+    const snap = makeSnap({
+      sourceId: A,
+      sourceItem: tree[ti(tree, A)],
+      targetId: "e",
+      targetItem: tree[ti(tree, "e")],
+      zone: "after",
+    });
+
+    const preview = computeDragPreview(singleGroupProjects, mockGroups, snap);
+    expect(preview.map((it) => it.id)).toEqual([D, G1, "slot-g1", "e", A]);
   });
 
   it("拖拽无分组项目 → 无 group-slot 注入", () => {

@@ -18,7 +18,7 @@ export function GroupSlotItem({ isOnto }: { isOnto: boolean }) {
       opacity: 0.5,
       transition: "border-color 0.15s, color 0.15s",
     }}>
-      {t.groupSlotText}
+      {isOnto ? t.groupSlotHoverText : ""}
     </div>
   );
 }
