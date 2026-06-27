@@ -7,11 +7,13 @@
 // ============================================================================
 
 import type { TreeItem } from "../lib/store";
+import { nextGroupColor } from "../lib/store";
 import type { Project } from "../lib/tauri";
 import type { DragZone } from "../lib/drag";
 import { GroupSlotItem } from "./GroupSlotItem";
 import { GroupHeaderItem } from "./GroupHeaderItem";
 import { ProjectItem } from "./ProjectItem";
+import type { GroupInfo } from "../lib/tauri";
 
 interface SortableTreeItemProps {
   id: string;
@@ -32,15 +34,17 @@ interface SortableTreeItemProps {
   toggleGroup: (id: string, collapsed: boolean) => void;
   selectProject: (id: string | null) => void;
   projects: Project[];
+  groups: GroupInfo[];
 }
 
 export function SortableTreeItem({
   id, item, visible, activeId, dragZone, dragTargetId, ontoGroupId,
   savedSelected, filterActive, editingGroupId, editName, setEditName,
-  commitRename, handleGroupRename, toggleGroup, selectProject, projects
+  commitRename, handleGroupRename, toggleGroup, selectProject, projects, groups
 }: SortableTreeItemProps) {
 
   const isSource = activeId === id;
+  const ontoColor = resolveOntoColor(item, dragZone, dragTargetId, ontoGroupId, groups);
 
   if (!visible) {
     return (
@@ -63,6 +67,7 @@ export function SortableTreeItem({
       <div data-dnd-item-id={id} className="drag-item">
         <GroupHeaderItem item={item} isSource={isSource} isOnto={isOntoTarget}
           isInOntoGroup={isInOntoGroup}
+          ontoColor={ontoColor}
           editingGroupId={editingGroupId} editName={editName} setEditName={setEditName}
           commitRename={commitRename} handleGroupRename={handleGroupRename}
           toggleGroup={toggleGroup}
@@ -80,9 +85,28 @@ export function SortableTreeItem({
   return (
     <div data-dnd-item-id={id} className="drag-item">
       <ProjectItem item={item} project={p} isSource={isSource} isOnto={isOntoTarget}
-        isInOntoGroup={isInOntoGroup} savedSelected={savedSelected} itemId={id}
+        isInOntoGroup={isInOntoGroup} ontoColor={ontoColor} savedSelected={savedSelected} itemId={id}
         selectProject={selectProject}
         filterActive={filterActive} dragZone={dragZone} dragTargetId={dragTargetId} />
     </div>
   );
+}
+
+function resolveOntoColor(
+  item: TreeItem,
+  dragZone: DragZone,
+  dragTargetId: string | null,
+  ontoGroupId: string | null,
+  groups: GroupInfo[]
+): string {
+  if (ontoGroupId) {
+    return groups.find((group) => group.id === ontoGroupId)?.color ?? "var(--color-primary)";
+  }
+  if (dragZone === "onto" && dragTargetId === item.id) {
+    if (item.project?.group_id || item.groupId) {
+      return item.groupColor ?? groups.find((group) => group.id === (item.project?.group_id ?? item.groupId))?.color ?? "var(--color-primary)";
+    }
+    return nextGroupColor(groups);
+  }
+  return item.groupColor ?? "var(--color-primary)";
 }

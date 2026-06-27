@@ -15,6 +15,7 @@ interface ProjectItemProps {
   isSource: boolean;
   isOnto: boolean;
   isInOntoGroup: boolean;
+  ontoColor: string;
   savedSelected: string | null;
   itemId: string;
   selectProject: (id: string | null) => void;
@@ -25,7 +26,7 @@ interface ProjectItemProps {
 
 export function ProjectItem({
   item, project: p, isSource, isOnto, isInOntoGroup,
-  savedSelected, itemId, selectProject, filterActive,
+  ontoColor, savedSelected, itemId, selectProject, filterActive,
   dragZone, dragTargetId
 }: ProjectItemProps) {
   const isGrouped = item.isGrouped;
@@ -40,17 +41,15 @@ export function ProjectItem({
       {showBefore && <div className="drop-line drop-line-top" />}
       {showAfter && <div className="drop-line drop-line-bottom" />}
 
-      <div style={{
-        padding: isGrouped ? "7px 14px 7px 18px" : "8px 14px",
-        margin: "1px 4px", display: "flex", alignItems: "center", gap: 4,
+      <div className="drag-row" style={{
+        padding: "0 14px 0 0",
+        margin: "1px 4px", display: "flex", alignItems: "stretch", gap: 4,
         cursor: filterActive ? "pointer" : "default",
         background: sel ? "var(--color-hover)" : (highlight ? "var(--color-card)" : "transparent"),
-        borderLeft: sel
-          ? "2px solid var(--color-primary)"
-          : (isGrouped ? `3px solid ${groupColor || "transparent"}` : "2px solid transparent"),
+        borderLeft: isGrouped ? `3px solid ${groupColor || "transparent"}` : "3px solid transparent",
         opacity: isSource ? 0 : 1,
         boxShadow: highlight
-          ? `inset 0 0 0 2px ${isGrouped ? groupColor : "var(--color-primary)"}`
+          ? `inset 0 0 0 2px ${ontoColor}`
           : "none",
         userSelect: "none",
       }}
@@ -58,15 +57,15 @@ export function ProjectItem({
         onMouseLeave={(e: React.MouseEvent<HTMLDivElement>) => { if (sel !== true && !highlight) e.currentTarget.style.background = "transparent"; }}
       >
         {/* grip handle: data-drag-handle 让父组件通过事件委托捕获 pointerdown */}
-        <span data-drag-handle style={{ cursor: "grab", display: "flex", color: "var(--color-text-muted)", opacity: 0.5 }}>
+        <span data-drag-handle className="drag-handle" style={{ cursor: "grab", display: "flex", alignItems: "center", padding: "0 4px", color: "var(--color-text-muted)" }}>
           <GripVertical size={14} strokeWidth={1.5} />
         </span>
 
         <div onClick={() => selectProject(itemId)}
-          style={{ flex: 1, minWidth: 0, display: "flex", alignItems: "center", gap: 6, cursor: "pointer" }}>
+          style={{ flex: 1, minWidth: 0, display: "flex", alignItems: "center", gap: 6, cursor: "pointer", padding: isGrouped ? "7px 0 7px 0" : "8px 0" }}>
           <Folder size={14} strokeWidth={1.5} />
           <div style={{ flex: 1, minWidth: 0 }}>
-            <div style={{ color: "var(--color-text)", overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap", fontSize: 13 }}>{p.name}</div>
+            <div style={{ color: "var(--color-text)", overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap", fontSize: 13, fontWeight: sel ? 600 : 400 }}>{p.name}</div>
             <div style={{ fontSize: 10, color: "var(--color-text-muted)", overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>{p.path}</div>
           </div>
           {p.starred && <Star size={12} strokeWidth={1.5} color="var(--color-warning)" />}

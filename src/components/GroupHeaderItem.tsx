@@ -14,6 +14,7 @@ interface GroupHeaderItemProps {
   isSource: boolean;
   isOnto: boolean;
   isInOntoGroup: boolean;
+  ontoColor: string;
   editingGroupId: string | null;
   editName: string;
   setEditName: (v: string) => void;
@@ -28,7 +29,7 @@ interface GroupHeaderItemProps {
 
 export function GroupHeaderItem({
   item, isSource, isOnto, isInOntoGroup, editingGroupId, editName,
-  setEditName, commitRename, handleGroupRename, toggleGroup,
+  ontoColor, setEditName, commitRename, handleGroupRename, toggleGroup,
   projects, dragZone, dragTargetId, itemId
 }: GroupHeaderItemProps) {
   const vc = projects.filter((p) => p.group_id === item.groupId).length;
@@ -37,17 +38,19 @@ export function GroupHeaderItem({
   const highlight = isOnto || isInOntoGroup;
 
   return (
-    <div style={{
+    <div className="drag-row" style={{
       position: "relative", margin: "1px 4px", display: "flex", alignItems: "center",
       background: highlight ? "var(--color-card)" : "transparent",
-      opacity: isSource ? 0.4 : 1,
+      opacity: isSource ? 0 : 1,
       borderLeft: item.groupColor ? `3px solid ${item.groupColor}` : "3px solid transparent",
+      boxShadow: highlight ? `inset 0 0 0 2px ${ontoColor}` : "none",
+      userSelect: "none",
     }}>
       {showBefore && <div className="drop-line drop-line-top" />}
       {showAfter && <div className="drop-line drop-line-bottom" />}
 
       {/* grip handle: data-drag-handle 让父组件捕获 pointerdown */}
-      <span data-drag-handle style={{ cursor: "grab", padding: "6px 4px", display: "flex", color: "var(--color-text-muted)", opacity: 0.6 }}>
+      <span data-drag-handle className="drag-handle" style={{ cursor: "grab", padding: "6px 4px", display: "flex", color: "var(--color-text-muted)" }}>
         <GripVertical size={14} strokeWidth={1.5} />
       </span>
 

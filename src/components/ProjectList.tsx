@@ -29,9 +29,6 @@ import { SortableTreeItem } from "./SortableTreeItem";
 import { OverlayCard } from "./OverlayCard";
 
 
-const LONG_PRESS_MS = 300;
-const MOVE_TOLERANCE_PX = 5;
-
 const BOTTOM_DROP_HEIGHT = 56;
 
 interface DragHandleState {
@@ -39,8 +36,14 @@ interface DragHandleState {
   startX: number;
   startY: number;
   pointerId: number;
-  timer: ReturnType<typeof setTimeout> | null;
   active: boolean;
+}
+
+interface DragOverlayMetrics {
+  offsetX: number;
+  offsetY: number;
+  width: number;
+  height: number;
 }
 
 // ============================================================================
@@ -75,11 +78,11 @@ export function ProjectList() {
   snapRef.current = dragSnap;
 
   const handleRef = useRef<DragHandleState>({
-    sourceId: null, startX: 0, startY: 0, pointerId: -1, timer: null, active: false,
+    sourceId: null, startX: 0, startY: 0, pointerId: -1, active: false,
   });
 
-  const [overlayY, setOverlayY] = useState<number | null>(null);
-  const overlayXRef = useRef<number>(0);
+  const [overlayPos, setOverlayPos] = useState<{ x: number; y: number } | null>(null);
+  const overlayMetricsRef = useRef<DragOverlayMetrics>({ offsetX: 0, offsetY: 0, width: 0, height: 0 });
 
   const heightMapRef = useRef<HeightMap>(new Map());
   const containerTopRef = useRef<number>(0);
@@ -206,10 +209,12 @@ export function ProjectList() {
   const handlePointerDown = useCallback((e: React.PointerEvent) => {
     const grip = (e.target as HTMLElement).closest("[data-drag-handle]");
     if (!grip) return;
+    e.preventDefault();
+    e.stopPropagation();
 
     const itemEl = (e.target as HTMLElement).closest("[data-dnd-item-id]") as HTMLElement | null;
     const itemId = itemEl?.getAttribute("data-dnd-item-id");
-    if (!itemId) return;
+    if (!itemEl || !itemId) return;
 
     if (!!filter) return;
 
@@ -218,73 +223,66 @@ export function ProjectList() {
     h.startX = e.clientX;
     h.startY = e.clientY;
     h.pointerId = e.pointerId;
-    h.active = false;
+    h.active = true;
+    document.body.classList.add("dragging-active");
 
-    if (h.timer) clearTimeout(h.timer);
+    const rect = itemEl.getBoundingClientRect();
+    overlayMetricsRef.current = {
+      offsetX: e.clientX - rect.left,
+      offsetY: e.clientY - rect.top,
+      width: rect.width,
+      height: rect.height,
+    };
 
-    h.timer = setTimeout(() => {
-      const h2 = handleRef.current;
-      if (h2.sourceId !== itemId) return;
-      h2.active = true;
-
-      if (listRef.current) {
-        heightMapRef.current = captureHeights(listRef.current);
-        containerTopRef.current = listRef.current.getBoundingClientRect().top;
-        const src = projects.find((p) => p.id === itemId);
-        if (src?.group_id) {
-          const g = groups.find((grp) => grp.id === src.group_id);
-          if (g && !g.collapsed) {
-            heightMapRef.current.set(`slot-${src.group_id}`, 42);
-          }
+    if (listRef.current) {
+      heightMapRef.current = captureHeights(listRef.current);
+      containerTopRef.current = listRef.current.getBoundingClientRect().top;
+      const src = projects.find((p) => p.id === itemId);
+      if (src?.group_id) {
+        const g = groups.find((grp) => grp.id === src.group_id);
+        if (g && !g.collapsed) {
+          heightMapRef.current.set(`slot-${src.group_id}`, 42);
         }
       }
+    }
 
-      const item = itemMap.get(itemId);
-      const idx = displayTree.findIndex((it) => it.id === itemId);
-      log.dragStart(itemId, idx,
-        item?.type === "project" ? item.project?.group_id : item?.groupId,
-        displayTree.map((it) => ({ id: it.id, type: it.type, gid: it.project?.group_id ?? it.groupId ?? null }))
-      );
+    const item = itemMap.get(itemId);
+    const idx = displayTree.findIndex((it) => it.id === itemId);
+    log.dragStart(itemId, idx,
+      item?.type === "project" ? item.project?.group_id : item?.groupId,
+      displayTree.map((it) => ({ id: it.id, type: it.type, gid: it.project?.group_id ?? it.groupId ?? null }))
+    );
 
-      updSnap({
-        phase: "dragging", sourceId: itemId,
-        sourceItem: item ?? null, sourceIdx: idx,
-        targetId: null, targetItem: null, targetIdx: -1, zone: null, ontoGroupId: null,
-      });
+    updSnap({
+      phase: "dragging", sourceId: itemId,
+      sourceItem: item ?? null, sourceIdx: idx,
+      targetId: null, targetItem: null, targetIdx: -1, zone: null, ontoGroupId: null,
+    });
 
-      setOverlayY(h2.startY);
-      overlayXRef.current = h2.startX;
-      h2.timer = null;
+    setOverlayPos({
+      x: e.clientX - overlayMetricsRef.current.offsetX,
+      y: e.clientY - overlayMetricsRef.current.offsetY,
+    });
 
-      try { (e.target as HTMLElement).setPointerCapture?.(e.pointerId); } catch { /* ignore */ }
-    }, LONG_PRESS_MS);
-  }, [filter, itemMap, displayTree, updSnap]);
+    try { (e.target as HTMLElement).setPointerCapture?.(e.pointerId); } catch { /* ignore */ }
+  }, [filter, itemMap, displayTree, projects, groups, updSnap]);
 
   // ========================================================================
   useEffect(() => {
     const onMove = (e: PointerEvent) => {
       const h = handleRef.current;
 
-      if (!h.active) {
-        if (h.sourceId && h.timer) {
-          const dx = e.clientX - h.startX;
-          const dy = e.clientY - h.startY;
-          if (Math.abs(dx) > MOVE_TOLERANCE_PX || Math.abs(dy) > MOVE_TOLERANCE_PX) {
-            clearTimeout(h.timer);
-            h.timer = null;
-            h.sourceId = null;
-          }
-        }
-        return;
-      }
+      if (!h.active) return;
 
-      setOverlayY(e.clientY);
+      setOverlayPos({
+        x: e.clientX - overlayMetricsRef.current.offsetX,
+        y: e.clientY - overlayMetricsRef.current.offsetY,
+      });
       processDragFrame(e.clientY);
     };
 
     const onUp = () => {
       const h = handleRef.current;
-      if (h.timer) { clearTimeout(h.timer); h.timer = null; }
 
       if (!h.active) {
         h.sourceId = null;
@@ -315,7 +313,8 @@ export function ProjectList() {
       h.active = false;
       h.sourceId = null;
       h.pointerId = -1;
-      setOverlayY(null);
+      document.body.classList.remove("dragging-active");
+      setOverlayPos(null);
       setDragSnap(createEmptySnapshot());
     };
 
@@ -324,10 +323,7 @@ export function ProjectList() {
     return () => {
       window.removeEventListener("pointermove", onMove);
       window.removeEventListener("pointerup", onUp);
-      if (handleRef.current.timer) {
-        clearTimeout(handleRef.current.timer);
-        handleRef.current.timer = null;
-      }
+      document.body.classList.remove("dragging-active");
     };
   }, [displayTree, commitTree, projects, groups, processDragFrame, reorderAll, batchMoveAndReorder, createGroup, toggleGroup, t]);
 
@@ -385,7 +381,7 @@ export function ProjectList() {
               savedSelected={savedSelected} filterActive={!!filter && !isDragging}
               editingGroupId={editingGroupId} editName={editName} setEditName={setEditName} commitRename={commitRename}
               handleGroupRename={handleGroupRename} toggleGroup={toggleGroup} selectProject={selectProject}
-              projects={projects} />
+              projects={projects} groups={groups} />
           ))}
           {isDragging && (
             <div
@@ -413,9 +409,11 @@ export function ProjectList() {
         </div>
       </aside>
 
-      {overlayY !== null && activeItem && (
+      {overlayPos !== null && activeItem && (
         <div style={{
-          position: "fixed", left: overlayXRef.current + 12, top: overlayY + 8,
+          position: "fixed", left: overlayPos.x, top: overlayPos.y,
+          width: overlayMetricsRef.current.width || 220,
+          height: overlayMetricsRef.current.height || undefined,
           zIndex: 9999, pointerEvents: "none",
         }}>
           <OverlayCard item={activeItem} ontoGroupId={dragSnap.ontoGroupId} dragZone={dragSnap.zone}

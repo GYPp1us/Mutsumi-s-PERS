@@ -51,6 +51,12 @@ body,
   -webkit-font-smoothing: antialiased;
 }
 
+body.dragging-active,
+body.dragging-active * {
+  user-select: none !important;
+  -webkit-user-select: none !important;
+}
+
 ::-webkit-scrollbar {
   width: 6px;
 }
@@ -112,6 +118,20 @@ button {
 .drag-item {
   transition: opacity 0.15s ease, transform 0.18s ease, margin 0.18s ease;
   will-change: transform;
+}
+
+.drag-row .drag-handle {
+  opacity: 0;
+  transition: opacity 0.14s ease;
+}
+
+.drag-row:hover .drag-handle,
+.drag-row .drag-handle:focus-visible {
+  opacity: 0.72;
+}
+
+.drag-row .drag-handle:hover {
+  opacity: 1;
 }
 
 .drag-item-dragging {
