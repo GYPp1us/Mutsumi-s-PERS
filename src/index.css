@@ -110,7 +110,8 @@ button {
 }
 
 .drag-item {
-  transition: opacity 0.15s ease;
+  transition: opacity 0.15s ease, transform 0.18s ease, margin 0.18s ease;
+  will-change: transform;
 }
 
 .drag-item-dragging {

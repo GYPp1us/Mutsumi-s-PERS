@@ -50,7 +50,7 @@ export function SortableTreeItem({
 
   if (item.type === "group-slot") {
     return (
-      <div data-dnd-item-id={id}>
+      <div data-dnd-item-id={id} className="drag-item">
         <GroupSlotItem isOnto={dragZone === "onto" && dragTargetId === id} />
       </div>
     );
@@ -60,7 +60,7 @@ export function SortableTreeItem({
     const isOntoTarget = dragZone === "onto" && dragTargetId === id;
     const isInOntoGroup = !!ontoGroupId && item.groupId === ontoGroupId;
     return (
-      <div data-dnd-item-id={id}>
+      <div data-dnd-item-id={id} className="drag-item">
         <GroupHeaderItem item={item} isSource={isSource} isOnto={isOntoTarget}
           isInOntoGroup={isInOntoGroup}
           editingGroupId={editingGroupId} editName={editName} setEditName={setEditName}
@@ -78,7 +78,7 @@ export function SortableTreeItem({
     (dragZone === "onto" && dragTargetId === id && !item.project?.group_id)
   );
   return (
-    <div data-dnd-item-id={id}>
+    <div data-dnd-item-id={id} className="drag-item">
       <ProjectItem item={item} project={p} isSource={isSource} isOnto={isOntoTarget}
         isInOntoGroup={isInOntoGroup} savedSelected={savedSelected} itemId={id}
         selectProject={selectProject}

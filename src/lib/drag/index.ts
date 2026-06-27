@@ -11,3 +11,17 @@ export { computeZone, resolveTargetFromPoint, deriveOntoGroupId } from "./zone";
 export { resolveIntent, executeIntent } from "./intent";
 export { captureHeights, resolveTargetFromSnapshot, makeZoneTree } from "./snapshot";
 export type { HeightMap, ResolvedTarget } from "./snapshot";
+export {
+  BOTTOM_DROP_ID,
+  buildDeterministicRows,
+  computeBottomDropPreview,
+  computeDeterministicDragPreview,
+  resolveTargetFromDeterministicLayout,
+  resolveTargetFromDeterministicRows,
+  resolveStableTargetFromDeterministicRows,
+} from "./deterministic";
+export type {
+  DeterministicLayoutRow,
+  DeterministicTarget,
+  DeterministicTargetKind,
+} from "./deterministic";
