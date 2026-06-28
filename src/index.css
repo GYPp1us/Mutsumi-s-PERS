@@ -120,6 +120,10 @@ button {
   will-change: transform;
 }
 
+.drag-item.drag-reorder-animating {
+  transition: transform 0.18s cubic-bezier(0.2, 0, 0, 1);
+}
+
 .drag-row .drag-handle {
   opacity: 0;
   transition: opacity 0.14s ease;
@@ -136,6 +140,48 @@ button {
 
 .drag-item-dragging {
   opacity: 0;
+}
+
+@keyframes drop-settle {
+  from {
+    transform: translate(var(--drop-from-x), var(--drop-from-y));
+    opacity: 0.96;
+  }
+  to {
+    transform: translate(0, 0);
+    opacity: 0;
+  }
+}
+
+.drop-settle-overlay {
+  animation: drop-settle 0.18s cubic-bezier(0.2, 0, 0, 1) forwards;
+  will-change: transform, opacity;
+}
+
+@keyframes highlight-in {
+  from {
+    background-color: transparent;
+    box-shadow: inset 0 0 0 0 transparent;
+  }
+  to {
+    background-color: var(--color-card);
+  }
+}
+
+.drag-row {
+  transition:
+    background-color 0.16s ease,
+    box-shadow 0.16s ease,
+    opacity 0.15s ease,
+    transform 0.18s cubic-bezier(0.2, 0, 0, 1);
+}
+
+.drag-row:has(.drag-handle) {
+  animation-duration: 0.16s;
+}
+
+.drag-row-highlight {
+  animation: highlight-in 0.16s ease-out;
 }
 
 .onto-highlight {
@@ -185,28 +231,4 @@ button {
   bottom: 0;
   width: 3px;
   transition: opacity 0.15s ease;
-}
-
-@keyframes drop-line-in {
-  from { opacity: 0; transform: scaleX(0.8); }
-  to { opacity: 1; transform: scaleX(1); }
-}
-
-.drop-line {
-  position: absolute;
-  left: 0;
-  right: 0;
-  height: 2px;
-  background: var(--color-primary-fg);
-  z-index: 10;
-  pointer-events: none;
-  animation: drop-line-in 0.15s ease-out forwards;
-}
-
-.drop-line-top {
-  top: -1px;
-}
-
-.drop-line-bottom {
-  bottom: -1px;
 }

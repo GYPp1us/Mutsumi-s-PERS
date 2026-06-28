@@ -45,11 +45,14 @@ export interface OffsetLayoutTargetInput extends DeterministicLayoutInput {
   containerTop: number;
   scrollTop: number;
   sourceId: string;
+  sourceItem?: TreeItem | null;
   contentOffsetTop: number;
   previous: DeterministicTarget | null;
 }
 
 const ZONE_HYSTERESIS = 0.06;
+const ADJACENT_REORDER_RATIO = 0.25;
+const ADJACENT_ONTO_RATIO = 0.5;
 
 export function estimateHeight(item: TreeItem): number {
   if (item.type === "group-slot") return DEFAULT_NODE_HEIGHTS.groupSlot;
@@ -69,7 +72,7 @@ export function buildDeterministicRows({
   for (let index = 0; index < tree.length; index += 1) {
     const item = tree[index];
     const measured = measuredHeights?.get(item.id);
-    const height = measured && measured > 0 ? measured : estimateHeight(item);
+    const height = measuredHeights?.has(item.id) && measured !== undefined ? measured : estimateHeight(item);
     rows.push({
       id: item.id,
       index,
@@ -119,6 +122,8 @@ function resolveTargetFromRows(
   sourceId: string,
   previous: DeterministicTarget | null
 ): DeterministicTarget | null {
+  if (contentY < 0) return null;
+
   for (const row of rows) {
     if (contentY < row.top || contentY >= row.bottom) continue;
 
@@ -209,6 +214,7 @@ export function resolveTargetFromOffsetLayout({
   containerTop,
   scrollTop,
   sourceId,
+  sourceItem: explicitSourceItem,
   containerHeight = 0,
   bottomDropHeight = DEFAULT_NODE_HEIGHTS.bottomDrop,
   contentOffsetTop,
@@ -217,32 +223,147 @@ export function resolveTargetFromOffsetLayout({
   const contentY = pointerY - containerTop + scrollTop - contentOffsetTop;
   const rows = buildDeterministicRows({ tree, measuredHeights, containerHeight, bottomDropHeight });
   const resolved = resolveStableTargetFromDeterministicRows(rows, contentY, sourceId, previous);
-  if (!resolved || resolved.zone !== "onto" || resolved.targetItem?.type !== "project") {
+  if (!resolved || !resolved.targetItem) {
     return resolved;
   }
 
-  const sourceItem = tree.find((item) => item.id === sourceId) ?? null;
-  if (shouldUseEdgeInsertionForGroupedTarget(sourceItem, resolved.targetItem)) {
+  const sourceItem = explicitSourceItem ?? tree.find((item) => item.id === sourceId) ?? null;
+  if (
+    sourceItem?.type === "project" &&
+    resolved.targetItem.type === "project" &&
+    !shouldUseEdgeInsertion(sourceItem, resolved.targetItem)
+  ) {
+    const row = rows[resolved.targetIdx];
+    const sourceRow = rows.find((candidate) => candidate.id === sourceId);
+    if (row) {
+      return {
+        ...resolved,
+        zone: resolveDirectionalProjectZone(
+          row,
+          sourceRow?.index ?? -1,
+          contentY,
+          previous
+        ),
+      };
+    }
+  }
+
+  if (sourceItem?.type === "group-header" && resolved.targetItem.type === "group-header") {
+    return {
+      ...resolved,
+      zone: "before",
+    };
+  }
+  if (sourceItem?.type === "group-header" && resolved.targetItem?.type === "project") {
+    const targetGroupId = resolved.targetItem.project?.group_id ?? null;
+    if (targetGroupId) {
+      if (!isLastProjectInGroup(rows, resolved.targetIdx, targetGroupId)) {
+        return {
+          ...resolved,
+          zone: "before",
+        };
+      }
+      return {
+        ...resolved,
+        zone: resolveEdgeZone(rows[resolved.targetIdx], contentY, previous),
+      };
+    }
+  }
+
+  if (shouldUseEdgeInsertion(sourceItem, resolved.targetItem)) {
     const row = rows.find((candidate) => candidate.id === resolved.targetId);
     if (!row) return resolved;
     return {
       ...resolved,
-      zone: contentY < row.top + row.height / 2 ? "before" : "after",
+      zone: resolveEdgeZone(row, contentY, previous),
     };
   }
 
   return resolved;
 }
 
-function shouldUseEdgeInsertionForGroupedTarget(
+function resolveDirectionalProjectZone(
+  row: DeterministicLayoutRow,
+  sourceRowIndex: number,
+  contentY: number,
+  previous: DeterministicTarget | null
+): Exclude<DragZone, null> {
+  const sourceIsAboveTarget = sourceRowIndex >= 0 ? sourceRowIndex < row.index : false;
+  const ratio = (contentY - row.top) / row.height;
+  const zone = sourceIsAboveTarget
+    ? resolveDownwardProjectZone(ratio)
+    : resolveUpwardProjectZone(ratio);
+
+  if (!previous || previous.targetId !== row.id || !previous.zone) return zone;
+  if (previous.zone === zone) return zone;
+
+  if (previous.zone === "onto" && zone !== "onto") {
+    const ontoStart = sourceIsAboveTarget ? ADJACENT_REORDER_RATIO : 1 - ADJACENT_ONTO_RATIO;
+    const ontoEnd = sourceIsAboveTarget ? ADJACENT_ONTO_RATIO : 1 - ADJACENT_REORDER_RATIO;
+    if (ratio >= ontoStart - ZONE_HYSTERESIS && ratio <= ontoEnd + ZONE_HYSTERESIS) {
+      return "onto";
+    }
+  }
+
+  return zone;
+}
+
+function resolveDownwardProjectZone(ratio: number): Exclude<DragZone, null> {
+  if (ratio < ADJACENT_REORDER_RATIO) return "before";
+  if (ratio < ADJACENT_ONTO_RATIO) return "onto";
+  return "after";
+}
+
+function resolveUpwardProjectZone(ratio: number): Exclude<DragZone, null> {
+  if (ratio < 1 - ADJACENT_ONTO_RATIO) return "before";
+  if (ratio < 1 - ADJACENT_REORDER_RATIO) return "onto";
+  return "after";
+}
+
+function shouldUseEdgeInsertion(
   sourceItem: TreeItem | null,
   targetItem: TreeItem
 ): boolean {
+  if (targetItem.type === "group-slot") return false;
+  if (targetItem.type === "group-header") return true;
+  if (sourceItem?.type === "group-header") return true;
   if (sourceItem?.type !== "project" || targetItem.type !== "project") return false;
   const targetGroupId = targetItem.project?.group_id ?? null;
   if (!targetGroupId) return false;
   const sourceGroupId = sourceItem.project?.group_id ?? null;
   return sourceGroupId !== targetGroupId;
+}
+
+function resolveEdgeZone(
+  row: DeterministicLayoutRow,
+  contentY: number,
+  previous: DeterministicTarget | null
+): Exclude<DragZone, null> {
+  const ratio = (contentY - row.top) / row.height;
+
+  if (previous?.targetId === row.id && previous.zone) {
+    if (previous.zone === "before" && ratio < 0.5 + ZONE_HYSTERESIS) {
+      return "before";
+    }
+    if (previous.zone === "after" && ratio > 0.5 - ZONE_HYSTERESIS) {
+      return "after";
+    }
+  }
+
+  return ratio < 0.5 ? "before" : "after";
+}
+
+function isLastProjectInGroup(
+  rows: DeterministicLayoutRow[],
+  targetIdx: number,
+  groupId: string
+): boolean {
+  for (let index = targetIdx + 1; index < rows.length; index += 1) {
+    const row = rows[index];
+    if (row.kind === "group-header") break;
+    if (row.item?.project?.group_id === groupId) return false;
+  }
+  return true;
 }
 
 export function computeBottomDropPreview(
@@ -293,10 +414,15 @@ export function computeDeterministicDragPreview(
   const sourceGroupId = snap.sourceItem.groupId;
   if (!sourceGroupId) return preview;
 
-  return preview.filter((item) => {
-    if (item.type !== "project") return true;
-    return item.project?.group_id !== sourceGroupId;
-  });
+  return preview
+    .filter((item) => {
+      if (item.type !== "project") return true;
+      return item.project?.group_id !== sourceGroupId;
+    })
+    .map((item) => {
+      if (item.type !== "group-header" || item.groupId !== sourceGroupId) return item;
+      return { ...item, groupCollapsed: true };
+    });
 }
 
 function moveGroupBlockToBottom(

@@ -130,7 +130,7 @@ describe("deterministic drag rows", () => {
 
     expect(hit).toMatchObject({
       targetId: G1,
-      zone: "onto",
+      zone: "after",
     });
 
     const uncorrectedRows = buildDeterministicRows({ tree, measuredHeights: heights, containerHeight: 320 });
@@ -138,6 +138,54 @@ describe("deterministic drag rows", () => {
       targetId: A,
       zone: "onto",
     });
+  });
+
+  it("does not let zero-height collapsed children consume collision space", () => {
+    const collapsedGroups = groups.map((group) =>
+      group.id === G1 ? { ...group, collapsed: true } : group
+    );
+    const projectList = [project(A, G1), project(D, null), project(C, null)];
+    const tree = buildTree(projectList, collapsedGroups);
+    const heights = new Map([
+      [G1, 34],
+      [A, 0],
+      [D, 52],
+      [C, 52],
+    ]);
+
+    const hit = resolveTargetFromOffsetLayout({
+      tree,
+      measuredHeights: heights,
+      pointerY: 34 + 20,
+      containerTop: 0,
+      scrollTop: 0,
+      sourceId: C,
+      contentOffsetTop: 0,
+      previous: null,
+    });
+
+    expect(hit).toMatchObject({
+      targetId: D,
+      zone: "before",
+    });
+  });
+
+  it("does not resolve positions above the first drag row as bottom drop", () => {
+    const tree = buildTree(projects, groups);
+    const heights = new Map(tree.map((it) => [it.id, 34]));
+
+    const hit = resolveTargetFromOffsetLayout({
+      tree,
+      measuredHeights: heights,
+      pointerY: 90,
+      containerTop: 100,
+      scrollTop: 0,
+      sourceId: D,
+      contentOffsetTop: 20,
+      previous: null,
+    });
+
+    expect(hit).toBeNull();
   });
 
   it("moves a grouped project to the visual bottom as an ungrouped project", () => {
@@ -189,7 +237,27 @@ describe("deterministic drag rows", () => {
 
     const preview = computeDeterministicDragPreview(projects, groups, snap);
     expect(preview.map((it) => it.id)).toEqual([G2, C, D, G1]);
-    expect(preview.find((it) => it.id === G1)?.groupItemCount).toBe(2);
+    expect(preview.find((it) => it.id === G1)).toMatchObject({
+      groupCollapsed: true,
+      groupItemCount: 2,
+    });
+  });
+
+  it("moves a lower group header above an upper group without sending the upper group to the bottom", () => {
+    const tree = buildTree(projects, groups);
+    const snap = dragging({
+      sourceId: G2,
+      sourceItem: item(tree, G2),
+      sourceIdx: tree.findIndex((it) => it.id === G2),
+      targetId: G1,
+      targetItem: item(tree, G1),
+      targetIdx: tree.findIndex((it) => it.id === G1),
+      zone: "before",
+    });
+
+    const preview = computeDeterministicDragPreview(projects, groups, snap);
+    expect(preview.map((it) => it.id)).toEqual([G2, G1, A, B, D]);
+    expect(preview.filter((it) => it.id === G1)).toHaveLength(1);
   });
 
   it("uses the same collapsed source group block for group-header collision rows", () => {
@@ -250,7 +318,167 @@ describe("deterministic drag rows", () => {
     expect(bottomHalf).toMatchObject({ targetId: C, zone: "after" });
   });
 
-  it("does not change preview layout while hovering over a collapsed group header", () => {
+  it("downgrades project hits on group headers to edge insertion zones", () => {
+    const tree = buildTree(projects, groups);
+    const heights = new Map(tree.map((it) => [it.id, 100]));
+
+    const topHalf = resolveTargetFromOffsetLayout({
+      tree,
+      measuredHeights: heights,
+      pointerY: 45,
+      containerTop: 0,
+      scrollTop: 0,
+      sourceId: D,
+      contentOffsetTop: 0,
+      previous: null,
+    });
+    const bottomHalf = resolveTargetFromOffsetLayout({
+      tree,
+      measuredHeights: heights,
+      pointerY: 55,
+      containerTop: 0,
+      scrollTop: 0,
+      sourceId: D,
+      contentOffsetTop: 0,
+      previous: null,
+    });
+
+    expect(resolveTargetFromDeterministicRows(
+      buildDeterministicRows({ tree, measuredHeights: heights }),
+      50,
+      D
+    )?.zone).toBe("onto");
+    expect(topHalf).toMatchObject({ targetId: G1, zone: "before" });
+    expect(bottomHalf).toMatchObject({ targetId: G1, zone: "after" });
+  });
+
+  it("uses direction-aware zones when dragging a project downward", () => {
+    const ungrouped = [project(A, null), project(B, null), project(C, null)];
+    const tree = buildTree(ungrouped, groups);
+    const heights = new Map(tree.map((it) => [it.id, 100]));
+    const targetRow = buildDeterministicRows({ tree, measuredHeights: heights })
+      .find((row) => row.id === B);
+    if (!targetRow) throw new Error("missing target row");
+
+    const at = (offset: number) => resolveTargetFromOffsetLayout({
+      tree,
+      measuredHeights: heights,
+      pointerY: targetRow.top + offset,
+      containerTop: 0,
+      scrollTop: 0,
+      sourceId: A,
+      sourceItem: item(tree, A),
+      contentOffsetTop: 0,
+      previous: null,
+    });
+
+    expect(at(20)).toMatchObject({ targetId: B, zone: "before" });
+    expect(at(35)).toMatchObject({ targetId: B, zone: "onto" });
+    expect(at(75)).toMatchObject({ targetId: B, zone: "after" });
+  });
+
+  it("uses direction-aware zones when dragging a project upward", () => {
+    const ungrouped = [project(A, null), project(B, null), project(C, null)];
+    const tree = buildTree(ungrouped, groups);
+    const heights = new Map(tree.map((it) => [it.id, 100]));
+    const targetRow = buildDeterministicRows({ tree, measuredHeights: heights })
+      .find((row) => row.id === B);
+    if (!targetRow) throw new Error("missing target row");
+
+    const at = (offset: number) => resolveTargetFromOffsetLayout({
+      tree,
+      measuredHeights: heights,
+      pointerY: targetRow.top + offset,
+      containerTop: 0,
+      scrollTop: 0,
+      sourceId: C,
+      sourceItem: item(tree, C),
+      contentOffsetTop: 0,
+      previous: null,
+    });
+
+    expect(at(20)).toMatchObject({ targetId: B, zone: "before" });
+    expect(at(65)).toMatchObject({ targetId: B, zone: "onto" });
+    expect(at(80)).toMatchObject({ targetId: B, zone: "after" });
+  });
+
+  it("downgrades group-header dragging over any row to edge insertion zones", () => {
+    const zoneTree = makeZoneTree(projects, groups, G1);
+    const heights = new Map(zoneTree.map((it) => [it.id, 100]));
+    const targetRow = buildDeterministicRows({ tree: zoneTree, measuredHeights: heights })
+      .find((row) => row.id === C);
+    if (!targetRow) throw new Error("missing target row");
+
+    const topHalf = resolveTargetFromOffsetLayout({
+      tree: zoneTree,
+      measuredHeights: heights,
+      pointerY: targetRow.top + 45,
+      containerTop: 0,
+      scrollTop: 0,
+      sourceId: G1,
+      contentOffsetTop: 0,
+      previous: null,
+    });
+    const bottomHalf = resolveTargetFromOffsetLayout({
+      tree: zoneTree,
+      measuredHeights: heights,
+      pointerY: targetRow.top + 55,
+      containerTop: 0,
+      scrollTop: 0,
+      sourceId: G1,
+      contentOffsetTop: 0,
+      previous: null,
+    });
+
+    expect(topHalf).toMatchObject({ targetId: C, zone: "before" });
+    expect(bottomHalf).toMatchObject({ targetId: C, zone: "after" });
+  });
+
+  it("keeps group-header targets always before when dragging a group header", () => {
+    const zoneTree = makeZoneTree(projects, groups, G1);
+    const heights = new Map(zoneTree.map((it) => [it.id, 100]));
+    const headerRow = buildDeterministicRows({ tree: zoneTree, measuredHeights: heights })
+      .find((row) => row.id === G2);
+    if (!headerRow) throw new Error("missing header row");
+
+    const hit = resolveTargetFromOffsetLayout({
+      tree: zoneTree,
+      measuredHeights: heights,
+      pointerY: headerRow.top + 75,
+      containerTop: 0,
+      scrollTop: 0,
+      sourceId: G1,
+      sourceItem: item(buildTree(projects, groups), G1),
+      contentOffsetTop: 0,
+      previous: null,
+    });
+
+    expect(hit).toMatchObject({ targetId: G2, zone: "before" });
+  });
+
+  it("uses the explicit source item to keep group-header dragging edge-only", () => {
+    const treeWithoutSource = buildTree(projects, groups).filter((it) => it.id !== G1);
+    const heights = new Map(treeWithoutSource.map((it) => [it.id, 100]));
+    const targetRow = buildDeterministicRows({ tree: treeWithoutSource, measuredHeights: heights })
+      .find((row) => row.id === C);
+    if (!targetRow) throw new Error("missing target row");
+
+    const hit = resolveTargetFromOffsetLayout({
+      tree: treeWithoutSource,
+      measuredHeights: heights,
+      pointerY: targetRow.top + 50,
+      containerTop: 0,
+      scrollTop: 0,
+      sourceId: G1,
+      sourceItem: item(buildTree(projects, groups), G1),
+      contentOffsetTop: 0,
+      previous: null,
+    });
+
+    expect(hit).toMatchObject({ targetId: C, zone: "after" });
+  });
+
+  it("keeps a project outside when hovering before a collapsed group header", () => {
     const collapsedGroups = groups.map((group) =>
       group.id === G2 ? { ...group, collapsed: true } : group
     );
@@ -262,12 +490,12 @@ describe("deterministic drag rows", () => {
       targetId: G2,
       targetItem: item(tree, G2),
       targetIdx: tree.findIndex((it) => it.id === G2),
-      zone: "onto",
-      ontoGroupId: G2,
+      zone: "before",
+      ontoGroupId: null,
     });
 
     const preview = computeBottomDropPreview(projects, collapsedGroups, snap);
-    expect(preview.map((it) => it.id)).toEqual([G1, A, B, G2, C, D]);
+    expect(preview.map((it) => it.id)).toEqual([G1, A, B, D, G2, C]);
     expect(preview.find((it) => it.id === G2)?.groupCollapsed).toBe(true);
   });
 
@@ -355,7 +583,7 @@ describe("deterministic drag rows", () => {
           { projectId: A, groupId: "new-group" },
           { projectId: D, groupId: "new-group" },
         ],
-        order: [B, C, D, A],
+        order: [B, C, A, D],
       },
     ]);
   });
@@ -395,6 +623,79 @@ describe("deterministic drag rows", () => {
       {
         changes: [{ projectId: A, groupId: G2 }],
         order: [B, A, C, D],
+      },
+    ]);
+  });
+
+  it("keeps a project ungrouped when dropped before a group header", async () => {
+    const tree = buildTree(projects, groups);
+    const snap = dragging({
+      sourceId: D,
+      sourceItem: item(tree, D),
+      sourceIdx: tree.findIndex((it) => it.id === D),
+      targetId: G1,
+      targetItem: item(tree, G1),
+      targetIdx: tree.findIndex((it) => it.id === G1),
+      zone: "before",
+    });
+    snap.intent = resolveIntent(snap);
+
+    const preview = computeBottomDropPreview(projects, groups, snap);
+    const calls: { changes: { projectId: string; groupId: string | null }[]; order: string[] }[] = [];
+
+    await executeIntent(snap.intent, snap, preview, projects, groups, {
+      reorderAll: (order) => calls.push({ changes: [], order }),
+      batchMoveAndReorder: async (changes, order) => {
+        calls.push({ changes, order });
+      },
+      createGroup: async () => "new-group",
+      toggleGroup: async () => {},
+      t: {
+        groupDefaultName: (n) => `Group ${n}`,
+        ungroupBadge: "Ungroup",
+        joinGroupBadge: (name) => `Join ${name}`,
+        newGroupBadge: "New group",
+      },
+    });
+
+    expect(calls).toEqual([{ changes: [], order: [D, A, B, C] }]);
+  });
+
+  it("moves a project into the group when dropped after a group header", async () => {
+    const tree = buildTree(projects, groups);
+    const snap = dragging({
+      sourceId: D,
+      sourceItem: item(tree, D),
+      sourceIdx: tree.findIndex((it) => it.id === D),
+      targetId: G1,
+      targetItem: item(tree, G1),
+      targetIdx: tree.findIndex((it) => it.id === G1),
+      zone: "after",
+    });
+    snap.intent = resolveIntent(snap);
+
+    const preview = computeBottomDropPreview(projects, groups, snap);
+    const calls: { changes: { projectId: string; groupId: string | null }[]; order: string[] }[] = [];
+
+    await executeIntent(snap.intent, snap, preview, projects, groups, {
+      reorderAll: (order) => calls.push({ changes: [], order }),
+      batchMoveAndReorder: async (changes, order) => {
+        calls.push({ changes, order });
+      },
+      createGroup: async () => "new-group",
+      toggleGroup: async () => {},
+      t: {
+        groupDefaultName: (n) => `Group ${n}`,
+        ungroupBadge: "Ungroup",
+        joinGroupBadge: (name) => `Join ${name}`,
+        newGroupBadge: "New group",
+      },
+    });
+
+    expect(calls).toEqual([
+      {
+        changes: [{ projectId: D, groupId: G1 }],
+        order: [D, A, B, C],
       },
     ]);
   });
@@ -455,12 +756,12 @@ describe("deterministic drag rows", () => {
 
     const stable = resolveStableTargetFromDeterministicRows(
       rows,
-      targetRow.top + 24,
+      targetRow.top + 32,
       A,
       previous
     );
 
-    expect(resolveTargetFromDeterministicRows(rows, targetRow.top + 24, A)?.zone).toBe("onto");
+    expect(resolveTargetFromDeterministicRows(rows, targetRow.top + 32, A)?.zone).toBe("onto");
     expect(stable?.zone).toBe("before");
   });
 });

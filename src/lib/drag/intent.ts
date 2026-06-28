@@ -50,7 +50,7 @@ export async function executeIntent(
 
   if (intent === "reorder") {
     const sourceProject = projects.find((project) => project.id === sourceId);
-    const targetGroupId = getTargetGroupId(targetItem);
+    const targetGroupId = getTargetGroupId(targetItem, zone);
 
     if (sourceProject?.group_id !== targetGroupId) {
       if (targetGroupId) {
@@ -72,7 +72,7 @@ export async function executeIntent(
   }
 
   if (intent === "join_group") {
-    const ontoGroup = snap.ontoGroupId ?? getTargetGroupId(targetItem);
+    const ontoGroup = snap.ontoGroupId ?? getTargetGroupId(targetItem, zone);
     if (!ontoGroup) return;
 
     const sourceProject = projects.find((project) => project.id === sourceId);
@@ -131,9 +131,12 @@ export async function executeIntent(
   }
 }
 
-function getTargetGroupId(targetItem: TreeItem | null): string | null {
+function getTargetGroupId(targetItem: TreeItem | null, zone?: DragSnapshot["zone"]): string | null {
   if (!targetItem) return null;
-  if (targetItem.type === "group-header" || targetItem.type === "group-slot") {
+  if (targetItem.type === "group-header") {
+    return zone === "before" ? null : targetItem.groupId ?? null;
+  }
+  if (targetItem.type === "group-slot") {
     return targetItem.groupId ?? null;
   }
   return targetItem.project?.group_id ?? null;

@@ -178,11 +178,12 @@ describe("deriveOntoGroupId", () => {
     expect(result).toBeNull();
   });
 
-  it("group-header → 返回分组 ID", () => {
+  it("group-header after zone implies joining the group", () => {
     const tree = buildTree(mockProjects, mockGroups);
     const header = tree.find((it) => it.type === "group-header");
-    const result = deriveOntoGroupId("before", header!, null);
-    expect(result).toBe(header!.groupId);
+    expect(deriveOntoGroupId("before", header!, null)).toBeNull();
+    expect(deriveOntoGroupId("after", header!, null)).toBe(header!.groupId);
+    expect(deriveOntoGroupId("onto", header!, null)).toBe(header!.groupId);
   });
 });
 
@@ -228,6 +229,24 @@ describe("computeDragPreview", () => {
     expect(preview.map((it) => it.id)).toEqual([G1, "slot-g1", D, A]);
   });
 
+  it("keeps the drag-out slot visible when hovering the source group's own slot area", () => {
+    const tree = buildTree(mockProjects, mockGroups);
+    const snap = makeSnap({
+      sourceId: A,
+      sourceItem: tree[ti(tree, A)],
+      targetId: "slot-g1",
+      targetItem: { type: "group-slot", id: "slot-g1", groupId: G1 },
+      zone: "onto",
+    });
+
+    const preview = computeDragPreview(mockProjects, mockGroups, snap);
+    const slotIdx = preview.findIndex((it) => it.type === "group-slot" && it.groupId === G1);
+    const bIdx = preview.findIndex((it) => it.id === B);
+
+    expect(slotIdx).toBeGreaterThan(bIdx);
+    expect(slotIdx).toBeGreaterThan(-1);
+  });
+
   it("keeps an emptied single-item source group at its original visual position", () => {
     const singleGroupProjects = [p(D, null), p(A, G1), p("e", null)];
     const tree = buildTree(singleGroupProjects, mockGroups);
@@ -241,6 +260,22 @@ describe("computeDragPreview", () => {
 
     const preview = computeDragPreview(singleGroupProjects, mockGroups, snap);
     expect(preview.map((it) => it.id)).toEqual([D, G1, "slot-g1", "e", A]);
+  });
+
+  it("ungroups from a single-item group at that group's visual slot position", () => {
+    const singleGroupProjects = [p(D, null), p(A, G1), p("e", null)];
+    const tree = buildTree(singleGroupProjects, mockGroups);
+    const snap = makeSnap({
+      sourceId: A,
+      sourceItem: tree[ti(tree, A)],
+      targetId: "slot-g1",
+      targetItem: { type: "group-slot", id: "slot-g1", groupId: G1 },
+      zone: "onto",
+    });
+
+    const preview = computeDragPreview(singleGroupProjects, mockGroups, snap);
+    expect(preview.filter((it) => it.type === "project").map((it) => it.id)).toEqual([D, A, "e"]);
+    expect(preview.find((it) => it.id === A)?.project?.group_id).toBeNull();
   });
 
   it("拖拽无分组项目 → 无 group-slot 注入", () => {
@@ -267,7 +302,36 @@ describe("computeDragPreview", () => {
     expect(bIdx).toBeLessThan(aIdx);
   });
 
-  it("同组 onto 预览 → 源插入目标之后（组内重排）", () => {
+  it("project before top group header preview moves the project above that group", () => {
+    const tree = buildTree(mockProjects, mockGroups);
+    const snap = makeSnap({
+      sourceId: D,
+      sourceItem: tree[ti(tree, D)],
+      targetId: G1,
+      targetItem: tree[ti(tree, G1)],
+      zone: "before",
+    });
+
+    const preview = computeDragPreview(mockProjects, mockGroups, snap);
+    expect(preview.map((it) => it.id)).toEqual([D, G1, A, B, G2, C]);
+  });
+
+  it("project after a group header previews as joining that group at the top", () => {
+    const tree = buildTree(mockProjects, mockGroups);
+    const snap = makeSnap({
+      sourceId: D,
+      sourceItem: tree[ti(tree, D)],
+      targetId: G1,
+      targetItem: tree[ti(tree, G1)],
+      zone: "after",
+    });
+
+    const preview = computeDragPreview(mockProjects, mockGroups, snap);
+    expect(preview.map((it) => it.id)).toEqual([G1, D, A, B, G2, C]);
+    expect(preview.find((it) => it.id === D)?.project?.group_id).toBe(G1);
+  });
+
+  it("同组 onto 预览 → 源保持在目标的来源侧", () => {
     const tree = buildTree(mockProjects, mockGroups);
     const snap = makeSnap({
       sourceId: A, sourceItem: tree[ti(tree, A)],
@@ -278,11 +342,44 @@ describe("computeDragPreview", () => {
     const projIds = preview.filter((it) => it.type === "project").map((it) => it.id);
     const aIdx = projIds.indexOf(A);
     const bIdx = projIds.indexOf(B);
-    // A 在同组内，onto → 排在 B 之后
-    expect(aIdx).toBeGreaterThan(bIdx);
+    expect(aIdx).toBeLessThan(bIdx);
     // 不应排到组尾（C 在 G2，A 仍应在 G1 → B-C 之间）
     const cIdx = projIds.indexOf(C);
     expect(aIdx).toBeLessThan(cIdx);
+  });
+
+  it("keeps downward onto preview adjacent on the source side", () => {
+    const ungroupedProjects = [p(A, null), p(B, null), p(C, null)];
+    const tree = buildTree(ungroupedProjects, mockGroups);
+    const snap = makeSnap({
+      sourceId: A,
+      sourceItem: tree[ti(tree, A)],
+      sourceIdx: ti(tree, A),
+      targetId: B,
+      targetItem: tree[ti(tree, B)],
+      targetIdx: ti(tree, B),
+      zone: "onto",
+    });
+
+    const preview = computeDragPreview(ungroupedProjects, mockGroups, snap);
+    expect(preview.map((it) => it.id)).toEqual([A, B, C]);
+  });
+
+  it("keeps upward onto preview adjacent on the source side", () => {
+    const ungroupedProjects = [p(A, null), p(B, null), p(C, null)];
+    const tree = buildTree(ungroupedProjects, mockGroups);
+    const snap = makeSnap({
+      sourceId: C,
+      sourceItem: tree[ti(tree, C)],
+      sourceIdx: ti(tree, C),
+      targetId: B,
+      targetItem: tree[ti(tree, B)],
+      targetIdx: ti(tree, B),
+      zone: "onto",
+    });
+
+    const preview = computeDragPreview(ungroupedProjects, mockGroups, snap);
+    expect(preview.map((it) => it.id)).toEqual([A, B, C]);
   });
 
   it("分组头拖拽 → 整组 block 移动", () => {
@@ -299,6 +396,21 @@ describe("computeDragPreview", () => {
     const g1headerIdx = ids.indexOf(header1.id);
     const dIdx = ids.indexOf(D);
     expect(g1headerIdx).toBeGreaterThan(dIdx);
+  });
+
+  it("group-header before a grouped project previews as a collapsed block before the target group", () => {
+    const tree = buildTree(mockProjects, mockGroups);
+    const header1 = tree.find((it) => it.type === "group-header" && it.groupId === G1)!;
+    const snap = makeSnap({
+      sourceId: header1.id,
+      sourceItem: header1,
+      targetId: C,
+      targetItem: tree[ti(tree, C)],
+      zone: "before",
+    });
+
+    const preview = computeDragPreview(mockProjects, mockGroups, snap);
+    expect(preview.map((it) => it.id)).toEqual([G1, A, B, G2, C, D]);
   });
 });
 

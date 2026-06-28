@@ -60,9 +60,9 @@ export interface DragCallbacks {
 }
 
 // ─── 常量 ───
-// SWAP_THRESHOLD: 边缘区域的判定阈值（22%）
-// 元素顶部 22% = "before", 底部 22% = "after", 中间 56% = "onto"
-export const SWAP_THRESHOLD = 0.22;
+// SWAP_THRESHOLD: edge insertion zone threshold.
+// Top/bottom 30% trigger before/after; the center 40% remains onto.
+export const SWAP_THRESHOLD = 0.3;
 
 // ─── createEmptySnapshot(): 返回初始（非拖拽）状态 ───
 export function createEmptySnapshot(): DragSnapshot {

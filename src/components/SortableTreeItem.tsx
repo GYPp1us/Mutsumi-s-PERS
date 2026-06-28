@@ -55,7 +55,7 @@ export function SortableTreeItem({
   if (item.type === "group-slot") {
     return (
       <div data-dnd-item-id={id} className="drag-item">
-        <GroupSlotItem isOnto={dragZone === "onto" && dragTargetId === id} />
+        <GroupSlotItem isOnto={dragTargetId === id} />
       </div>
     );
   }
@@ -99,6 +99,9 @@ function resolveOntoColor(
   ontoGroupId: string | null,
   groups: GroupInfo[]
 ): string {
+  if (item.type === "group-slot") {
+    return "var(--color-primary)";
+  }
   if (ontoGroupId) {
     return groups.find((group) => group.id === ontoGroupId)?.color ?? "var(--color-primary)";
   }

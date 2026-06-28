@@ -6,38 +6,47 @@ import type { DragZone } from "../lib/drag";
 
 interface OverlayCardProps {
   item: TreeItem;
+  sourceGroupId: string | null;
   ontoGroupId: string | null;
   dragZone: DragZone;
   groups: GroupInfo[];
   projects: Project[];
   itemMap: Map<string, TreeItem>;
   dragTargetId: string | null;
+  highlightColor: string;
+  highlighted: boolean;
 }
 
 export function OverlayCard({
   item,
+  sourceGroupId,
   ontoGroupId,
   dragZone,
   groups,
   projects,
   itemMap,
   dragTargetId,
+  highlightColor,
+  highlighted,
 }: OverlayCardProps) {
   const t = useT();
   const targetItem = dragTargetId ? itemMap.get(dragTargetId) : null;
-  const badgeText = getBadgeText(targetItem, ontoGroupId, dragZone, groups, t);
+  const badgeText = getBadgeText(targetItem, sourceGroupId, ontoGroupId, dragZone, groups, t);
 
   return (
     <div
       style={{
         width: "100%",
         minHeight: "100%",
-        background: "var(--color-panel)",
+        background: highlighted ? "var(--color-card)" : "var(--color-panel)",
         color: "var(--color-text)",
-        boxShadow: "0 4px 16px rgba(0,0,0,0.28)",
+        boxShadow: highlighted
+          ? `0 4px 16px rgba(0,0,0,0.28), inset 0 0 0 2px ${highlightColor}`
+          : "0 4px 16px rgba(0,0,0,0.28)",
         pointerEvents: "none",
         userSelect: "none",
         overflow: "hidden",
+        transition: "background-color 0.16s ease, box-shadow 0.16s ease",
       }}
     >
       {item.type === "group-header" ? (
@@ -158,6 +167,7 @@ function Badge({ text }: { text: string | null }) {
 
 function getBadgeText(
   targetItem: TreeItem | null | undefined,
+  sourceGroupId: string | null,
   ontoGroupId: string | null,
   dragZone: DragZone,
   groups: GroupInfo[],
@@ -165,6 +175,8 @@ function getBadgeText(
 ): string | null {
   if (!targetItem) return null;
   if (targetItem.type === "group-slot") return t.ungroupBadge;
+  const targetGroupId = targetItem.project?.group_id ?? targetItem.groupId ?? null;
+  if (sourceGroupId && targetGroupId && sourceGroupId === targetGroupId) return null;
   if (ontoGroupId) {
     const group = groups.find((candidate) => candidate.id === ontoGroupId);
     return group ? t.joinGroupBadge(group.name) : null;

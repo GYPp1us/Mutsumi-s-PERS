@@ -27,21 +27,15 @@ interface ProjectItemProps {
 export function ProjectItem({
   item, project: p, isSource, isOnto, isInOntoGroup,
   ontoColor, savedSelected, itemId, selectProject, filterActive,
-  dragZone, dragTargetId
 }: ProjectItemProps) {
   const isGrouped = item.isGrouped;
   const groupColor = item.groupColor;
   const sel = savedSelected === itemId;
-  const showBefore = dragZone === "before" && dragTargetId === itemId;
-  const showAfter = dragZone === "after" && dragTargetId === itemId;
   const highlight = isOnto || isInOntoGroup;
 
   return (
     <div style={{ position: "relative" }}>
-      {showBefore && <div className="drop-line drop-line-top" />}
-      {showAfter && <div className="drop-line drop-line-bottom" />}
-
-      <div className="drag-row" style={{
+      <div className={`drag-row${highlight ? " drag-row-highlight" : ""}`} style={{
         padding: "0 14px 0 0",
         margin: "1px 4px", display: "flex", alignItems: "stretch", gap: 4,
         cursor: filterActive ? "pointer" : "default",

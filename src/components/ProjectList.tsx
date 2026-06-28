@@ -4,7 +4,7 @@
 //
 // ============================================================================
 
-import { useState, useEffect, useMemo, useRef, useCallback } from "react";
+import { useState, useEffect, useMemo, useRef, useCallback, useLayoutEffect } from "react";
 import { useAppStore } from "../lib/store";
 import { useT } from "../lib/i18n";
 import { log } from "../lib/draglog";
@@ -24,6 +24,8 @@ import {
   makeZoneTree,
 } from "../lib/drag";
 import type { DragSnapshot, HeightMap } from "../lib/drag";
+import { getReorderAnimationDelta } from "../lib/drag/reorderAnimation";
+import { getDropAnimationTargetFromPreview, isDropOverlayHighlighted } from "../lib/drag/dropAnimation";
 
 import { SortableTreeItem } from "./SortableTreeItem";
 import { OverlayCard } from "./OverlayCard";
@@ -40,10 +42,25 @@ interface DragHandleState {
 }
 
 interface DragOverlayMetrics {
+  baseX: number;
   offsetX: number;
   offsetY: number;
   width: number;
   height: number;
+}
+
+interface DropSettleState {
+  item: DragSnapshot["sourceItem"];
+  sourceGroupId: string | null;
+  ontoGroupId: string | null;
+  dragZone: DragSnapshot["zone"];
+  dragTargetId: string | null;
+  highlightColor: string;
+  highlighted: boolean;
+  from: { x: number; y: number };
+  to: { x: number; y: number };
+  width: number;
+  height?: number;
 }
 
 // ============================================================================
@@ -82,11 +99,51 @@ export function ProjectList() {
   });
 
   const [overlayPos, setOverlayPos] = useState<{ x: number; y: number } | null>(null);
-  const overlayMetricsRef = useRef<DragOverlayMetrics>({ offsetX: 0, offsetY: 0, width: 0, height: 0 });
+  const [dropSettle, setDropSettle] = useState<DropSettleState | null>(null);
+  const overlayPosRef = useRef<{ x: number; y: number } | null>(null);
+  const overlayMetricsRef = useRef<DragOverlayMetrics>({ baseX: 0, offsetX: 0, offsetY: 0, width: 0, height: 0 });
+  const dropSettleTimerRef = useRef<number | null>(null);
 
   const heightMapRef = useRef<HeightMap>(new Map());
   const containerTopRef = useRef<number>(0);
   const contentOffsetTopRef = useRef<number>(0);
+  const rowTopMapRef = useRef<Map<string, number>>(new Map());
+  const reorderRafRef = useRef<Map<string, number>>(new Map());
+  const reorderCleanupRef = useRef<Map<string, number>>(new Map());
+  const reorderElementRef = useRef<Map<string, HTMLElement>>(new Map());
+
+  const clearAllReorderAnimations = useCallback(() => {
+    for (const raf of reorderRafRef.current.values()) cancelAnimationFrame(raf);
+    for (const timeout of reorderCleanupRef.current.values()) window.clearTimeout(timeout);
+    for (const el of reorderElementRef.current.values()) {
+      el.classList.remove("drag-reorder-animating");
+      el.style.transform = "";
+      el.style.transition = "";
+    }
+    reorderRafRef.current.clear();
+    reorderCleanupRef.current.clear();
+    reorderElementRef.current.clear();
+  }, []);
+
+  const clearDropSettleTimer = useCallback(() => {
+    if (dropSettleTimerRef.current === null) return;
+    window.clearTimeout(dropSettleTimerRef.current);
+    dropSettleTimerRef.current = null;
+  }, []);
+
+  const finishDragVisuals = useCallback(() => {
+    clearDropSettleTimer();
+    const h = handleRef.current;
+    h.active = false;
+    h.sourceId = null;
+    h.pointerId = -1;
+    document.body.classList.remove("dragging-active");
+    clearAllReorderAnimations();
+    overlayPosRef.current = null;
+    setOverlayPos(null);
+    setDropSettle(null);
+    setDragSnap(createEmptySnapshot());
+  }, [clearAllReorderAnimations, clearDropSettleTimer]);
 
   const isDragging = dragSnap.phase === "dragging";
 
@@ -125,13 +182,16 @@ export function ProjectList() {
     for (const item of displayTree) {
       if (item.type === "group-header" && !item.groupCollapsed && item.groupId) emptyGroups.add(item.groupId);
     }
+    if (isDragging && dragSnap.sourceItem?.type === "group-header" && dragSnap.sourceItem.groupId) {
+      emptyGroups.delete(dragSnap.sourceItem.groupId);
+    }
     for (const item of displayTree) {
       if (item.type === "project" && item.project?.group_id && map.get(item.id)) emptyGroups.delete(item.project.group_id);
       if (item.type === "group-slot" && item.groupId && map.get(item.id)) emptyGroups.delete(item.groupId);
     }
     for (const gid of emptyGroups) map.set(gid, false);
     return map;
-  }, [displayTree, filter]);
+  }, [displayTree, filter, dragSnap.sourceItem, isDragging]);
 
   useEffect(() => {
     if (!isDragging) return;
@@ -151,6 +211,93 @@ export function ProjectList() {
     }
     if (changed) heightMapRef.current = new Map(map);
   }, [displayTree, isDragging]);
+
+  useLayoutEffect(() => {
+    const container = listRef.current;
+    if (!container) return;
+
+    const clearReorderAnimation = (id: string, clearStyles = true) => {
+      const pendingRaf = reorderRafRef.current.get(id);
+      if (pendingRaf !== undefined) cancelAnimationFrame(pendingRaf);
+      reorderRafRef.current.delete(id);
+
+      const pendingCleanup = reorderCleanupRef.current.get(id);
+      if (pendingCleanup !== undefined) window.clearTimeout(pendingCleanup);
+      reorderCleanupRef.current.delete(id);
+
+      const el = reorderElementRef.current.get(id);
+      if (clearStyles && el) {
+        el.classList.remove("drag-reorder-animating");
+        el.style.transform = "";
+        el.style.transition = "";
+      }
+      reorderElementRef.current.delete(id);
+    };
+
+    const next = new Map<string, number>();
+    const entries = Array.from(container.querySelectorAll<HTMLElement>(".drag-item[data-dnd-item-id]"));
+    const visibleIds = new Set<string>();
+    for (const el of entries) {
+      const id = el.getAttribute("data-dnd-item-id");
+      if (!id || id === BOTTOM_DROP_ID) continue;
+      visibleIds.add(id);
+      next.set(id, el.offsetTop);
+    }
+
+    for (const id of Array.from(reorderElementRef.current.keys())) {
+      if (!visibleIds.has(id)) clearReorderAnimation(id);
+    }
+
+    if (!isDragging) {
+      for (const id of Array.from(reorderElementRef.current.keys())) clearReorderAnimation(id);
+      rowTopMapRef.current = next;
+      return;
+    }
+
+    const previous = rowTopMapRef.current;
+    const shouldAnimateSource = dragSnap.sourceItem?.type === "group-header";
+    for (const el of entries) {
+      const id = el.getAttribute("data-dnd-item-id");
+      if (!id || id === BOTTOM_DROP_ID || (id === dragSnap.sourceId && !shouldAnimateSource)) continue;
+      const oldTop = previous.get(id);
+      const newTop = next.get(id);
+      const dy = getReorderAnimationDelta(oldTop, newTop);
+      if (dy === null) continue;
+
+      clearReorderAnimation(id);
+      reorderElementRef.current.set(id, el);
+
+      el.classList.add("drag-reorder-animating");
+      el.style.transform = `translateY(${dy}px)`;
+      el.style.transition = "none";
+      void el.offsetHeight;
+      el.style.transition = "";
+
+      const raf = requestAnimationFrame(() => {
+        reorderRafRef.current.delete(id);
+        el.style.transform = "";
+        const cleanup = window.setTimeout(() => {
+          reorderCleanupRef.current.delete(id);
+          reorderElementRef.current.delete(id);
+          el.classList.remove("drag-reorder-animating");
+          el.style.transition = "";
+        }, 220);
+        reorderCleanupRef.current.set(id, cleanup);
+      });
+      reorderRafRef.current.set(id, raf);
+    }
+
+    if (dragSnap.sourceId && !shouldAnimateSource) clearReorderAnimation(dragSnap.sourceId);
+
+    rowTopMapRef.current = next;
+  }, [displayTree, isDragging, dragSnap.sourceId, dragSnap.sourceItem]);
+
+  useEffect(() => {
+    return () => {
+      clearDropSettleTimer();
+      clearAllReorderAnimations();
+    };
+  }, [clearAllReorderAnimations, clearDropSettleTimer]);
   const updSnap = useCallback((patch: Partial<DragSnapshot>) => {
     setDragSnap((prev) => {
       const next = { ...prev, ...patch };
@@ -185,6 +332,7 @@ export function ProjectList() {
       containerTop: ct,
       scrollTop: st,
       sourceId: h.sourceId,
+      sourceItem: previousSnap.sourceItem,
       containerHeight: listRef.current?.clientHeight ?? 0,
       contentOffsetTop: contentOffsetTopRef.current,
       previous: previousTarget,
@@ -199,7 +347,9 @@ export function ProjectList() {
     const targetItem = resolved.targetItem ?? zoneTree.find((item) => item.id === targetId) ?? null;
     const snap = snapRef.current;
     const srcGroupId = snap.sourceItem?.project?.group_id ?? snap.sourceItem?.groupId ?? null;
-    const ontoGroupId = deriveOntoGroupId(zone, targetItem, srcGroupId);
+    const ontoGroupId = snap.sourceItem?.type === "group-header"
+      ? null
+      : deriveOntoGroupId(zone, targetItem, srcGroupId);
 
     if (snap.targetId === targetId && snap.zone === zone && snap.ontoGroupId === ontoGroupId) return;
 
@@ -225,10 +375,14 @@ export function ProjectList() {
     h.startY = e.clientY;
     h.pointerId = e.pointerId;
     h.active = true;
+    clearDropSettleTimer();
+    setDropSettle(null);
     document.body.classList.add("dragging-active");
 
-    const rect = itemEl.getBoundingClientRect();
+    const visualEl = itemEl.querySelector<HTMLElement>(".drag-row") ?? itemEl;
+    const rect = visualEl.getBoundingClientRect();
     overlayMetricsRef.current = {
+      baseX: rect.left,
       offsetX: e.clientX - rect.left,
       offsetY: e.clientY - rect.top,
       width: rect.width,
@@ -269,10 +423,12 @@ export function ProjectList() {
       targetId: null, targetItem: null, targetIdx: -1, zone: null, ontoGroupId: null,
     });
 
-    setOverlayPos({
-      x: e.clientX - overlayMetricsRef.current.offsetX,
+    const initialOverlayPos = {
+      x: overlayMetricsRef.current.baseX,
       y: e.clientY - overlayMetricsRef.current.offsetY,
-    });
+    };
+    overlayPosRef.current = initialOverlayPos;
+    setOverlayPos(initialOverlayPos);
 
     try { (e.target as HTMLElement).setPointerCapture?.(e.pointerId); } catch { /* ignore */ }
   }, [filter, itemMap, displayTree, projects, groups, zoneTree, updSnap]);
@@ -284,10 +440,12 @@ export function ProjectList() {
 
       if (!h.active) return;
 
-      setOverlayPos({
-        x: e.clientX - overlayMetricsRef.current.offsetX,
+      const nextOverlayPos = {
+        x: overlayMetricsRef.current.baseX,
         y: e.clientY - overlayMetricsRef.current.offsetY,
-      });
+      };
+      overlayPosRef.current = nextOverlayPos;
+      setOverlayPos(nextOverlayPos);
       processDragFrame(e.clientY);
     };
 
@@ -300,6 +458,36 @@ export function ProjectList() {
       }
 
       const snap = snapRef.current;
+      const activeSourceItem = snap.sourceItem;
+      const currentOverlayPos = overlayPosRef.current;
+      const currentOverlayMetrics = overlayMetricsRef.current;
+      const container = listRef.current;
+      const settleTarget = getDropAnimationTargetFromPreview({
+        sourceId: snap.sourceId,
+        targetId: snap.targetId,
+        previewIds: commitTree.map((item) => item.id),
+        rowTops: buildDeterministicRows({
+          tree: commitTree,
+          measuredHeights: heightMapRef.current,
+          containerHeight: container?.clientHeight ?? 0,
+        }).reduce((map, row) => {
+          map.set(row.id, row.top);
+          return map;
+        }, new Map<string, number>()),
+        overlay: currentOverlayPos,
+        baseX: currentOverlayMetrics.baseX,
+        containerTop: container?.getBoundingClientRect().top ?? containerTopRef.current,
+        contentOffsetTop: contentOffsetTopRef.current,
+        scrollTop: container?.scrollTop ?? 0,
+      });
+      const overlayHighlighted = isDropOverlayHighlighted({
+        sourceItemType: snap.sourceItem?.type,
+        targetId: snap.targetId,
+        targetItemType: snap.targetItem?.type,
+        zone: snap.zone,
+        ontoGroupId: snap.ontoGroupId,
+      });
+
       if (snap.phase === "dragging" && snap.sourceId && snap.targetId && snap.zone) {
         if (snap.targetId === BOTTOM_DROP_ID) {
           const order = commitTree.filter((item) => item.type === "project").map((item) => item.id);
@@ -320,12 +508,36 @@ export function ProjectList() {
         }
       }
 
-      h.active = false;
-      h.sourceId = null;
-      h.pointerId = -1;
-      document.body.classList.remove("dragging-active");
-      setOverlayPos(null);
-      setDragSnap(createEmptySnapshot());
+      if (settleTarget && activeSourceItem && currentOverlayPos) {
+        h.active = false;
+        h.sourceId = null;
+        h.pointerId = -1;
+        document.body.classList.remove("dragging-active");
+        clearAllReorderAnimations();
+        overlayPosRef.current = null;
+        setOverlayPos(null);
+        setDropSettle({
+          item: activeSourceItem,
+          sourceGroupId: activeSourceItem.project?.group_id ?? activeSourceItem.groupId ?? null,
+          ontoGroupId: snap.ontoGroupId,
+          dragZone: snap.zone,
+          dragTargetId: snap.targetId,
+          highlightColor: resolveOverlayHighlightColor(snap.targetItem, snap.ontoGroupId, groups),
+          highlighted: overlayHighlighted,
+          from: currentOverlayPos,
+          to: settleTarget,
+          width: currentOverlayMetrics.width || 220,
+          height: currentOverlayMetrics.height || undefined,
+        });
+        dropSettleTimerRef.current = window.setTimeout(() => {
+          dropSettleTimerRef.current = null;
+          setDropSettle(null);
+          setDragSnap(createEmptySnapshot());
+        }, 180);
+        return;
+      }
+
+      finishDragVisuals();
     };
 
     window.addEventListener("pointermove", onMove);
@@ -335,7 +547,7 @@ export function ProjectList() {
       window.removeEventListener("pointerup", onUp);
       document.body.classList.remove("dragging-active");
     };
-  }, [displayTree, commitTree, projects, groups, processDragFrame, reorderAll, batchMoveAndReorder, createGroup, toggleGroup, t]);
+  }, [commitTree, projects, groups, processDragFrame, reorderAll, batchMoveAndReorder, createGroup, toggleGroup, clearAllReorderAnimations, clearDropSettleTimer, finishDragVisuals, t]);
 
   const handleGroupRename = (gid: string) => {
     const g = groups.find((x) => x.id === gid);
@@ -357,6 +569,20 @@ export function ProjectList() {
   };
 
   const activeItem = isDragging && dragSnap.sourceId ? itemMap.get(dragSnap.sourceId) : null;
+  const activeHighlightColor = useMemo(
+    () => resolveOverlayHighlightColor(dragSnap.targetItem, dragSnap.ontoGroupId, groups),
+    [dragSnap.targetItem, dragSnap.ontoGroupId, groups]
+  );
+  const activeHighlighted = useMemo(
+    () => isDropOverlayHighlighted({
+      sourceItemType: dragSnap.sourceItem?.type,
+      targetId: dragSnap.targetId,
+      targetItemType: dragSnap.targetItem?.type,
+      zone: dragSnap.zone,
+      ontoGroupId: dragSnap.ontoGroupId,
+    }),
+    [dragSnap.sourceItem, dragSnap.targetId, dragSnap.targetItem, dragSnap.zone, dragSnap.ontoGroupId]
+  );
 
   // ========================================================================
   // ========================================================================
@@ -423,10 +649,55 @@ export function ProjectList() {
           height: overlayMetricsRef.current.height || undefined,
           zIndex: 9999, pointerEvents: "none",
         }}>
-          <OverlayCard item={activeItem} ontoGroupId={dragSnap.ontoGroupId} dragZone={dragSnap.zone}
-            groups={groups} projects={projects} itemMap={itemMap} dragTargetId={dragSnap.targetId} />
+          <OverlayCard item={activeItem} sourceGroupId={dragSnap.sourceItem?.project?.group_id ?? dragSnap.sourceItem?.groupId ?? null} ontoGroupId={dragSnap.ontoGroupId} dragZone={dragSnap.zone}
+            groups={groups} projects={projects} itemMap={itemMap} dragTargetId={dragSnap.targetId} highlightColor={activeHighlightColor} highlighted={activeHighlighted} />
+        </div>
+      )}
+      {dropSettle !== null && dropSettle.item && (
+        <div
+          className="drop-settle-overlay"
+          style={{
+            position: "fixed",
+            left: dropSettle.to.x,
+            top: dropSettle.to.y,
+            width: dropSettle.width,
+            height: dropSettle.height,
+            zIndex: 9998,
+            pointerEvents: "none",
+            ["--drop-from-x" as string]: `${dropSettle.from.x - dropSettle.to.x}px`,
+            ["--drop-from-y" as string]: `${dropSettle.from.y - dropSettle.to.y}px`,
+          }}
+        >
+          <OverlayCard
+            item={dropSettle.item}
+            sourceGroupId={dropSettle.sourceGroupId}
+            ontoGroupId={dropSettle.ontoGroupId}
+            dragZone={dropSettle.dragZone}
+            groups={groups}
+            projects={projects}
+            itemMap={itemMap}
+            dragTargetId={dropSettle.dragTargetId}
+            highlightColor={dropSettle.highlightColor}
+            highlighted={dropSettle.highlighted}
+          />
         </div>
       )}
     </>
   );
+}
+
+function resolveOverlayHighlightColor(
+  targetItem: DragSnapshot["targetItem"],
+  ontoGroupId: string | null,
+  groups: { id: string; color: string }[]
+): string {
+  if (targetItem?.type === "group-slot") return "var(--color-primary)";
+  if (ontoGroupId) {
+    return groups.find((group) => group.id === ontoGroupId)?.color ?? "var(--color-primary)";
+  }
+  if (targetItem?.project?.group_id || targetItem?.groupId) {
+    const groupId = targetItem.project?.group_id ?? targetItem.groupId;
+    return targetItem.groupColor ?? groups.find((group) => group.id === groupId)?.color ?? "var(--color-primary)";
+  }
+  return "var(--color-primary)";
 }

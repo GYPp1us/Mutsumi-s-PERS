@@ -79,7 +79,11 @@ export function deriveOntoGroupId(
   if (!zone || !targetItem) return null;
 
   if (targetItem.type === "group-slot") return null;
-  if (targetItem.type === "group-header") return targetItem.groupId || null;
+  if (targetItem.type === "group-header") {
+    if (zone === "before") return null;
+    const gid = targetItem.groupId || null;
+    return gid && gid === sourceGroupId ? null : gid;
+  }
 
   let gid: string | null = null;
   if (zone === "onto") gid = targetItem.project?.group_id || null;

@@ -15,7 +15,7 @@ export function GroupSlotItem({ isOnto }: { isOnto: boolean }) {
       display: "flex", alignItems: "center", justifyContent: "center",
       fontSize: 11,
       color: isOnto ? "var(--color-primary)" : "var(--color-text-muted)",
-      opacity: 0.5,
+      opacity: isOnto ? 1 : 0.5,
       transition: "border-color 0.15s, color 0.15s",
     }}>
       {isOnto ? t.groupSlotHoverText : ""}
