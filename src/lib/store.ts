@@ -151,6 +151,39 @@ export function buildTree(projects: Project[], groups: GroupInfo[]): TreeItem[] 
   return result;
 }
 
+interface AppStore {
+  projects: Project[];
+  settings: Settings | null;
+  selectedProjectId: string | null;
+  theme: "dark" | "light";
+  locale: "zh" | "en";
+  showSettings: boolean;
+  setupCompleted: boolean;
+  completeSetup: () => void;
+  toasts: Toast[];
+  loadProjects: () => Promise<void>;
+  loadSettings: () => Promise<void>;
+  addProject: (name: string, path: string) => Promise<void>;
+  removeProject: (id: string) => Promise<void>;
+  toggleStar: (id: string, starred: boolean) => Promise<void>;
+  selectProject: (id: string | null) => void;
+  toggleTheme: () => void;
+  setLocale: (locale: "zh" | "en") => void;
+  toggleSettings: () => void;
+  hideSettings: () => void;
+  pinned: boolean;
+  togglePin: () => void;
+  setPinnedState: (pinned: boolean) => void;
+  addToast: (message: string, type: ToastType) => void;
+  removeToast: (id: string) => void;
+  updateAvailable: { version: string; body?: string } | null;
+  updateProgress: { downloaded: number; total: number } | null;
+  updateStatus: "idle" | "checking" | "available" | "downloading" | "ready" | "error";
+  setUpdateAvailable: (update: { version: string; body?: string } | null) => void;
+  setUpdateProgress: (progress: { downloaded: number; total: number } | null) => void;
+  setUpdateStatus: (status: "idle" | "checking" | "available" | "downloading" | "ready" | "error") => void;
+}
+
 // ===========================================================================
 //
 // ============================================================================
