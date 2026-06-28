@@ -37,6 +37,39 @@ export interface TreeItem {
   groupItemCount?: number;
 }
 
+interface AppStore {
+  projects: Project[];
+  settings: Settings | null;
+  selectedProjectId: string | null;
+  theme: "dark" | "light";
+  locale: "zh" | "en";
+  showSettings: boolean;
+  setupCompleted: boolean;
+  completeSetup: () => void;
+  toasts: Toast[];
+  loadProjects: () => Promise<void>;
+  loadSettings: () => Promise<void>;
+  addProject: (name: string, path: string) => Promise<void>;
+  removeProject: (id: string) => Promise<void>;
+  toggleStar: (id: string, starred: boolean) => Promise<void>;
+  selectProject: (id: string | null) => void;
+  toggleTheme: () => void;
+  setLocale: (locale: "zh" | "en") => void;
+  toggleSettings: () => void;
+  hideSettings: () => void;
+  pinned: boolean;
+  togglePin: () => void;
+  setPinnedState: (pinned: boolean) => void;
+  addToast: (message: string, type: ToastType) => void;
+  removeToast: (id: string) => void;
+  updateAvailable: { version: string; body?: string } | null;
+  updateProgress: { downloaded: number; total: number } | null;
+  updateStatus: "idle" | "checking" | "available" | "downloading" | "ready" | "error";
+  setUpdateAvailable: (update: { version: string; body?: string } | null) => void;
+  setUpdateProgress: (progress: { downloaded: number; total: number } | null) => void;
+  setUpdateStatus: (status: "idle" | "checking" | "available" | "downloading" | "ready" | "error") => void;
+}
+
 export const GROUP_COLORS = [
   "#586878", "#5a6a5a", "#7a6a5a", "#5a5a7a",
   "#4a6a6a", "#6a5a6a", "#7a5a6a", "#5a5a5a",
@@ -215,6 +248,8 @@ export const useAppStore = create<AppStore>((set, get) => ({
   showCreateProject: false,
   navView: "home",
   templates: [],
+  setupCompleted: false,
+  completeSetup: () => set({ setupCompleted: true }),
   toasts: [],
   pinned: true,
   updateAvailable: null,
@@ -431,4 +466,3 @@ interface AppStore {
   setUpdateProgress: (progress: { downloaded: number; total: number } | null) => void;
   setUpdateStatus: (status: "idle" | "checking" | "available" | "downloading" | "ready" | "error") => void;
 }
-

@@ -195,15 +195,19 @@ export function SettingsView() {
           <button
             onClick={async () => {
               const next = !autostartEnabled;
+              setAutostartEnabled(next);
               try {
                 if (next) await enableAutostart();
-                else await disableAutostart();
-                setAutostartEnabled(next);
+                else {
+                  try { await disableAutostart(); }
+                  catch { /* registry entry may already be gone */ }
+                }
                 if (settings) {
                   await api.updateSettings({ ...settings, autostart: next });
                   await loadSettings();
                 }
               } catch (e) {
+                setAutostartEnabled(!next);
                 addToast(`Autostart toggle failed: ${e}`, "error");
               }
             }}
@@ -228,9 +232,14 @@ export function SettingsView() {
               onClick={async () => {
                 const next = !silentLaunchEnabled;
                 setSilentLaunchEnabled(next);
-                if (settings) {
-                  await api.updateSettings({ ...settings, silent_launch: next });
-                  await loadSettings();
+                try {
+                  if (settings) {
+                    await api.updateSettings({ ...settings, silent_launch: next });
+                    await loadSettings();
+                  }
+                } catch (e) {
+                  setSilentLaunchEnabled(!next);
+                  addToast(`Silent launch failed: ${e}`, "error");
                 }
               }}
               style={{

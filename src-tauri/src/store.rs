@@ -40,6 +40,8 @@ pub struct Settings {
     pub silent_launch: bool,
     #[serde(default)]
     pub default_project_path: String,
+    #[serde(default)]
+    pub setup_completed: bool,
     pub editors: Vec<EditorConfig>,
 }
 
@@ -97,6 +99,7 @@ impl AppStore {
                 autostart: false,
                 silent_launch: false,
                 default_project_path: String::new(),
+                setup_completed: false,
                 editors: vec![
                     EditorConfig {
                         id: "vscode".into(),
