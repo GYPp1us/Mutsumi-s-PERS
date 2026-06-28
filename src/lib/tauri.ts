@@ -57,6 +57,7 @@ export interface Settings {
   autostart: boolean;
   silent_launch: boolean;
   default_project_path: string;
+  setup_completed: boolean;
   editors: EditorConfig[];
 }
 
@@ -110,6 +111,8 @@ export const getSettings = () => invoke<Settings>("get_settings");
 export const updateSettings = (settings: Settings) =>
   invoke<void>("update_settings", { settings });
 
+export const updateShortcut = (keyCode: string, ctrl: boolean, alt: boolean, shift: boolean, meta: boolean) =>
+  invoke<void>("update_shortcut", { keyCode, ctrl, alt, shift, meta });
 export const gitStatus = (projectPath: string) =>
   invoke<string>("git_status", { projectPath });
 export const gitPull = (projectPath: string) =>

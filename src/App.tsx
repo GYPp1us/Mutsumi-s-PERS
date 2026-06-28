@@ -6,6 +6,7 @@ import { ProjectList } from "./components/ProjectList";
 import { RightPanel } from "./components/RightPanel";
 import { SettingsView } from "./components/SettingsView";
 import { UpdateModal } from "./components/UpdateModal";
+import { SetupWizard } from "./components/SetupWizard";
 import { ToastContainer } from "./components/Toast";
 import { CreateProjectDialog } from "./components/CreateProjectDialog";
 import { LocaleCtx, getLocale } from "./lib/i18n";
@@ -47,6 +48,9 @@ export default function App() {
   const hideSettings = useAppStore((s) => s.hideSettings);
   const loadProjects = useAppStore((s) => s.loadProjects);
   const loadSettings = useAppStore((s) => s.loadSettings);
+  const settings = useAppStore((s) => s.settings);
+  const setupCompleted = useAppStore((s) => s.setupCompleted);
+  const completeSetup = useAppStore((s) => s.completeSetup);
 
   useEffect(() => {
     document.documentElement.setAttribute("data-theme", theme);
@@ -56,6 +60,14 @@ export default function App() {
     loadProjects();
     loadSettings();
   }, []);
+
+  useEffect(() => {
+    if (settings) {
+      if (settings.setup_completed) {
+        completeSetup();
+      }
+    }
+  }, [settings]);
 
   useEffect(() => {
     const unlisten = listen("app-shown", () => {
@@ -114,6 +126,7 @@ export default function App() {
       <SettingsModal />
       <CreateProjectDialog />
       <UpdateModal />
+      {settings && !setupCompleted && <SetupWizard />}
       <ToastContainer />
     </LocaleCtx.Provider>
   );
