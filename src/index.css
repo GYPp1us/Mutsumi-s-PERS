@@ -51,6 +51,12 @@ body,
   -webkit-font-smoothing: antialiased;
 }
 
+body.dragging-active,
+body.dragging-active * {
+  user-select: none !important;
+  -webkit-user-select: none !important;
+}
+
 ::-webkit-scrollbar {
   width: 6px;
 }
@@ -99,4 +105,130 @@ button {
 .btn-loading {
   animation: btn-pulse 0.8s ease-in-out infinite;
   pointer-events: none;
+}
+
+.floating-card {
+  position: fixed;
+  z-index: 1000;
+  pointer-events: none;
+  box-shadow: 0 4px 16px rgba(0,0,0,0.4);
+  opacity: 0.92;
+}
+
+.drag-item {
+  transition: opacity 0.15s ease, transform 0.18s ease, margin 0.18s ease;
+  will-change: transform;
+}
+
+.drag-item.drag-reorder-animating {
+  transition: transform 0.18s cubic-bezier(0.2, 0, 0, 1);
+}
+
+.drag-row .drag-handle {
+  opacity: 0;
+  transition: opacity 0.14s ease;
+}
+
+.drag-row:hover .drag-handle,
+.drag-row .drag-handle:focus-visible {
+  opacity: 0.72;
+}
+
+.drag-row .drag-handle:hover {
+  opacity: 1;
+}
+
+.drag-item-dragging {
+  opacity: 0;
+}
+
+@keyframes drop-settle {
+  from {
+    transform: translate(var(--drop-from-x), var(--drop-from-y));
+    opacity: 0.96;
+  }
+  to {
+    transform: translate(0, 0);
+    opacity: 0;
+  }
+}
+
+.drop-settle-overlay {
+  animation: drop-settle 0.18s cubic-bezier(0.2, 0, 0, 1) forwards;
+  will-change: transform, opacity;
+}
+
+@keyframes highlight-in {
+  from {
+    background-color: transparent;
+    box-shadow: inset 0 0 0 0 transparent;
+  }
+  to {
+    background-color: var(--color-card);
+  }
+}
+
+.drag-row {
+  transition:
+    background-color 0.16s ease,
+    box-shadow 0.16s ease,
+    opacity 0.15s ease,
+    transform 0.18s cubic-bezier(0.2, 0, 0, 1);
+}
+
+.drag-row:has(.drag-handle) {
+  animation-duration: 0.16s;
+}
+
+.drag-row-highlight {
+  animation: highlight-in 0.16s ease-out;
+}
+
+.onto-highlight {
+  position: absolute;
+  inset: 0;
+  pointer-events: none;
+}
+
+.group-header {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  padding: 6px 12px;
+  margin: 1px 4px;
+  cursor: pointer;
+  user-select: none;
+  position: relative;
+}
+
+.group-header-rename-input {
+  background: var(--color-hover);
+  color: var(--color-text);
+  border: none;
+  padding: 2px 6px;
+  font-size: 13px;
+  font-weight: 600;
+  outline: none;
+  font-family: inherit;
+  width: 120px;
+}
+
+.group-item {
+  padding: 7px 14px;
+  margin: 1px 4px;
+  display: flex;
+  align-items: center;
+  gap: 8;
+  cursor: pointer;
+  position: relative;
+  user-select: none;
+}
+
+.group-bar {
+  position: absolute;
+  left: 0;
+  top: 0;
+  bottom: 0;
+  width: 3px;
+  transition: opacity 0.15s ease;
 }

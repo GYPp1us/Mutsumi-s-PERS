@@ -1,7 +1,7 @@
 import { useState, useRef } from "react";
 import { useAppStore } from "../lib/store";
 import { useT } from "../lib/i18n";
-import { updateShortcut, getSettings, updateSettings } from "../lib/tauri";
+import { updateShortcut, updateSettings } from "../lib/tauri";
 import { ActionButton } from "./ActionButton";
 
 const overlayStyle: React.CSSProperties = {
@@ -88,7 +88,6 @@ export function SetupWizard() {
     setSaving(true);
     try {
       await updateShortcut(keyCode, ctrl, alt, shift, meta);
-      const updated = await getSettings();
       useAppStore.getState().loadSettings();
       completeSetup();
       addToast("Shortcut saved!", "success");

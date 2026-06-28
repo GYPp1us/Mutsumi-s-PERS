@@ -9,7 +9,7 @@ pub fn inject_template(
     conflict: String,
 ) -> Result<Vec<String>, String> {
     let mut injected: Vec<String> = vec![];
-    copy_dir_recursive(
+    copy_dir_inner(
         Path::new(&template_path),
         Path::new(&target_path),
         &variables,
@@ -20,7 +20,7 @@ pub fn inject_template(
     Ok(injected)
 }
 
-fn copy_dir_recursive(
+pub fn copy_dir_inner(
     src: &Path,
     dst: &Path,
     vars: &[(String, String)],
@@ -41,7 +41,7 @@ fn copy_dir_recursive(
         let dst_path = dst.join(&resolved_name);
 
         if src_path.is_dir() {
-            copy_dir_recursive(&src_path, &dst_path, vars, conflict, injected)?;
+            copy_dir_inner(&src_path, &dst_path, vars, conflict, injected)?;
         } else {
             if dst_path.exists() && conflict == "skip" {
                 continue;

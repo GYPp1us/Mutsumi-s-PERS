@@ -46,11 +46,13 @@ export function SettingsView() {
   const [upToDate, setUpToDate] = useState(false);
   const [autostartEnabled, setAutostartEnabled] = useState(false);
   const [silentLaunchEnabled, setSilentLaunchEnabled] = useState(false);
+  const [defaultProjectPath, setDefaultProjectPath] = useState("");
 
   useEffect(() => {
     if (settings) {
       setAutostartEnabled(settings.autostart);
       setSilentLaunchEnabled(settings.silent_launch);
+      setDefaultProjectPath(settings.default_project_path);
     }
   }, [settings]);
 
@@ -66,12 +68,13 @@ export function SettingsView() {
     if (settings) {
       setEditors(settings.editors);
       setShortcut(settings.shortcut);
+      setDefaultProjectPath(settings.default_project_path);
     }
   }, [settings]);
 
   const handleSave = async () => {
     if (!settings) return;
-    await api.updateSettings({ ...settings, shortcut, editors });
+    await api.updateSettings({ ...settings, shortcut, editors, default_project_path: defaultProjectPath });
     await loadSettings();
     alert(t.settingsSaved);
   };
@@ -284,6 +287,20 @@ export function SettingsView() {
           placeholder={t.shortcutPlaceholder}
           style={{ ...inputStyle, width: 200 }}
         />
+      </div>
+
+      <div style={cardStyle}>
+        <div style={sectionLabel}><span>{t.defaultProjectPath}</span></div>
+        <input
+          type="text"
+          value={defaultProjectPath}
+          onChange={(e) => setDefaultProjectPath(e.target.value)}
+          placeholder={t.defaultProjectPathPlaceholder}
+          style={{ ...inputStyle, width: "100%" }}
+        />
+        <div style={{ fontSize: 11, color: "var(--color-text-muted)", marginTop: 8, lineHeight: 1.6 }}>
+          {t.defaultProjectPathHelp}
+        </div>
       </div>
 
       <div style={cardStyle}>

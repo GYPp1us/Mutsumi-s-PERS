@@ -13,6 +13,8 @@ pub struct Project {
     pub last_opened: String,
     pub activity_log: Vec<Activity>,
     pub sync_id: Option<String>,
+    #[serde(default)]
+    pub group_id: Option<String>,
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
@@ -36,20 +38,44 @@ pub struct Settings {
     pub shortcut: String,
     pub autostart: bool,
     pub silent_launch: bool,
+    #[serde(default)]
+    pub default_project_path: String,
+    #[serde(default)]
     pub setup_completed: bool,
     pub editors: Vec<EditorConfig>,
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct TemplateMeta {
+    pub name: String,
+    pub description: String,
+    pub version: String,
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct GroupMeta {
+    pub id: String,
+    pub name: String,
+    pub color: String,
+    pub collapsed: bool,
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize, Default)]
 pub struct AppStore {
     pub projects: Vec<Project>,
     pub settings: Settings,
+    #[serde(default)]
+    pub groups: Vec<GroupMeta>,
 }
 
 impl AppStore {
     fn data_dir() -> PathBuf {
         let base = dirs::config_dir().unwrap_or_else(|| PathBuf::from("."));
         base.join("mutsumi-s-pres")
+    }
+
+    pub fn templates_dir() -> PathBuf {
+        Self::data_dir().join("templates")
     }
 
     fn data_file() -> PathBuf {
@@ -72,6 +98,7 @@ impl AppStore {
                 shortcut: "Alt+Space".into(),
                 autostart: false,
                 silent_launch: false,
+                default_project_path: String::new(),
                 setup_completed: false,
                 editors: vec![
                     EditorConfig {
@@ -88,6 +115,7 @@ impl AppStore {
                     },
                 ],
             },
+            groups: vec![],
         }
     }
 

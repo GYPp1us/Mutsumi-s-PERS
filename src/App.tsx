@@ -8,6 +8,7 @@ import { SettingsView } from "./components/SettingsView";
 import { UpdateModal } from "./components/UpdateModal";
 import { SetupWizard } from "./components/SetupWizard";
 import { ToastContainer } from "./components/Toast";
+import { CreateProjectDialog } from "./components/CreateProjectDialog";
 import { LocaleCtx, getLocale } from "./lib/i18n";
 import { checkForUpdate } from "./lib/tauri";
 import { invoke } from "@tauri-apps/api/core";
@@ -123,6 +124,7 @@ export default function App() {
         <RightPanel />
       </div>
       <SettingsModal />
+      <CreateProjectDialog />
       <UpdateModal />
       {settings && !setupCompleted && <SetupWizard />}
       <ToastContainer />
