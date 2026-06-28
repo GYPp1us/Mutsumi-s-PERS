@@ -1,5 +1,17 @@
 # Changelog
 
+## [1.2.5] - 2026-06-29
+
+### Added
+- Finalized deterministic grouped drag interactions for the sidebar list
+
+### Changed
+- Unified drag hover, settle, and group-highlight behavior across grouped and ungrouped items
+- Kept setup wizard and default project path settings alongside the drag refactor
+
+### Fixed
+- Merge conflicts resolved between `master` and `feat/group-drag`
+
 ## [1.2.4] - 2026-06-24
 
 ### Added
