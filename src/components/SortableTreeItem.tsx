@@ -33,6 +33,7 @@ interface SortableTreeItemProps {
   handleGroupRename: (gid: string) => void;
   toggleGroup: (id: string, collapsed: boolean) => void;
   selectProject: (id: string | null) => void;
+  onOpenProjectContextMenu: (projectId: string, x: number, y: number) => void;
   projects: Project[];
   groups: GroupInfo[];
 }
@@ -40,7 +41,8 @@ interface SortableTreeItemProps {
 export function SortableTreeItem({
   id, item, visible, activeId, dragZone, dragTargetId, ontoGroupId,
   savedSelected, filterActive, editingGroupId, editName, setEditName,
-  commitRename, handleGroupRename, toggleGroup, selectProject, projects, groups
+  commitRename, handleGroupRename, toggleGroup, selectProject,
+  onOpenProjectContextMenu, projects, groups
 }: SortableTreeItemProps) {
 
   const isSource = activeId === id;
@@ -87,7 +89,8 @@ export function SortableTreeItem({
       <ProjectItem item={item} project={p} isSource={isSource} isOnto={isOntoTarget}
         isInOntoGroup={isInOntoGroup} ontoColor={ontoColor} savedSelected={savedSelected} itemId={id}
         selectProject={selectProject}
-        filterActive={filterActive} dragZone={dragZone} dragTargetId={dragTargetId} />
+        filterActive={filterActive} dragZone={dragZone} dragTargetId={dragTargetId}
+        onOpenContextMenu={onOpenProjectContextMenu} />
     </div>
   );
 }

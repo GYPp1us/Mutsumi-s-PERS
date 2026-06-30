@@ -8,7 +8,9 @@ import { useState, useEffect, useMemo, useRef, useCallback, useLayoutEffect } fr
 import { useAppStore } from "../lib/store";
 import { useT } from "../lib/i18n";
 import { log } from "../lib/draglog";
-import { Home, Plus } from "lucide-react";
+import { Home, Plus, Star, Trash2 } from "lucide-react";
+import { getProjectContextMenuItems } from "../lib/projectContextMenu";
+import type { ProjectContextMenuItemId } from "../lib/projectContextMenu";
 
 import {
   createEmptySnapshot,
@@ -63,6 +65,12 @@ interface DropSettleState {
   height?: number;
 }
 
+interface ProjectContextMenuState {
+  projectId: string;
+  x: number;
+  y: number;
+}
+
 // ============================================================================
 // ============================================================================
 
@@ -74,6 +82,8 @@ export function ProjectList() {
   const savedSelected = useAppStore((s) => s.selectedProjectId);
   const selectProject = useAppStore((s) => s.selectProject);
   const addProject = useAppStore((s) => s.addProject);
+  const removeProject = useAppStore((s) => s.removeProject);
+  const toggleStar = useAppStore((s) => s.toggleStar);
   const openCreateProject = useAppStore((s) => s.openCreateProject);
   const reorderAll = useAppStore((s) => s.reorderAll);
   const createGroup = useAppStore((s) => s.createGroup);
@@ -89,6 +99,7 @@ export function ProjectList() {
   const [filter, setFilter] = useState("");
   const [editingGroupId, setEditingGroupId] = useState<string | null>(null);
   const [editName, setEditName] = useState("");
+  const [projectContextMenu, setProjectContextMenu] = useState<ProjectContextMenuState | null>(null);
 
   const [dragSnap, setDragSnap] = useState<DragSnapshot>(createEmptySnapshot());
   const snapRef = useRef(dragSnap);
@@ -146,6 +157,7 @@ export function ProjectList() {
   }, [clearAllReorderAnimations, clearDropSettleTimer]);
 
   const isDragging = dragSnap.phase === "dragging";
+  const closeProjectContextMenu = useCallback(() => setProjectContextMenu(null), []);
 
   const displayTree = useMemo(
     () => computeDeterministicDragPreview(projects, groups, dragSnap),
@@ -298,6 +310,26 @@ export function ProjectList() {
       clearAllReorderAnimations();
     };
   }, [clearAllReorderAnimations, clearDropSettleTimer]);
+
+  useEffect(() => {
+    if (!projectContextMenu) return;
+
+    const handlePointerDown = (event: PointerEvent) => {
+      const target = event.target as HTMLElement | null;
+      if (target?.closest("[data-project-context-menu]")) return;
+      closeProjectContextMenu();
+    };
+    const handleKeyDown = (event: KeyboardEvent) => {
+      if (event.key === "Escape") closeProjectContextMenu();
+    };
+
+    window.addEventListener("pointerdown", handlePointerDown);
+    window.addEventListener("keydown", handleKeyDown);
+    return () => {
+      window.removeEventListener("pointerdown", handlePointerDown);
+      window.removeEventListener("keydown", handleKeyDown);
+    };
+  }, [closeProjectContextMenu, projectContextMenu]);
   const updSnap = useCallback((patch: Partial<DragSnapshot>) => {
     setDragSnap((prev) => {
       const next = { ...prev, ...patch };
@@ -362,12 +394,13 @@ export function ProjectList() {
     if (!grip) return;
     e.preventDefault();
     e.stopPropagation();
+    closeProjectContextMenu();
 
     const itemEl = (e.target as HTMLElement).closest("[data-dnd-item-id]") as HTMLElement | null;
     const itemId = itemEl?.getAttribute("data-dnd-item-id");
     if (!itemEl || !itemId) return;
 
-    if (!!filter) return;
+    if (filter) return;
 
     const h = handleRef.current;
     h.sourceId = itemId;
@@ -431,7 +464,7 @@ export function ProjectList() {
     setOverlayPos(initialOverlayPos);
 
     try { (e.target as HTMLElement).setPointerCapture?.(e.pointerId); } catch { /* ignore */ }
-  }, [filter, itemMap, displayTree, projects, groups, zoneTree, updSnap]);
+  }, [filter, itemMap, displayTree, projects, groups, zoneTree, updSnap, closeProjectContextMenu]);
 
   // ========================================================================
   useEffect(() => {
@@ -568,6 +601,42 @@ export function ProjectList() {
     } catch (e) { console.error("Failed to add project:", e); }
   };
 
+  const openProjectContextMenu = useCallback((projectId: string, x: number, y: number) => {
+    if (isDragging) return;
+    selectProject(projectId);
+    setProjectContextMenu({ projectId, x, y });
+  }, [isDragging, selectProject]);
+
+  const handleProjectContextAction = useCallback(async (action: ProjectContextMenuItemId) => {
+    if (!projectContextMenu) return;
+    const project = projects.find((item) => item.id === projectContextMenu.projectId);
+    if (!project) {
+      closeProjectContextMenu();
+      return;
+    }
+
+    closeProjectContextMenu();
+    if (action === "toggle-star") {
+      await toggleStar(project.id, !project.starred);
+      return;
+    }
+
+    if (window.confirm(t.deleteProjectConfirm(project.name))) {
+      await removeProject(project.id);
+    }
+  }, [closeProjectContextMenu, projectContextMenu, projects, removeProject, t, toggleStar]);
+
+  const contextProject = projectContextMenu
+    ? projects.find((project) => project.id === projectContextMenu.projectId) ?? null
+    : null;
+  const projectMenuItems = contextProject
+    ? getProjectContextMenuItems(contextProject.starred, {
+        star: t.starProject,
+        unstar: t.unstarProject,
+        delete: t.deleteProject,
+      })
+    : [];
+
   const activeItem = isDragging && dragSnap.sourceId ? itemMap.get(dragSnap.sourceId) : null;
   const activeHighlightColor = useMemo(
     () => resolveOverlayHighlightColor(dragSnap.targetItem, dragSnap.ontoGroupId, groups),
@@ -617,6 +686,7 @@ export function ProjectList() {
               savedSelected={savedSelected} filterActive={!!filter && !isDragging}
               editingGroupId={editingGroupId} editName={editName} setEditName={setEditName} commitRename={commitRename}
               handleGroupRename={handleGroupRename} toggleGroup={toggleGroup} selectProject={selectProject}
+              onOpenProjectContextMenu={openProjectContextMenu}
               projects={projects} groups={groups} />
           ))}
           {isDragging && (
@@ -641,6 +711,55 @@ export function ProjectList() {
           {isDragging ? t.dragFooterHint : t.projectCount(projects.length)}
         </div>
       </aside>
+
+      {projectContextMenu && contextProject && (
+        <div
+          data-project-context-menu
+          role="menu"
+          style={{
+            position: "fixed",
+            left: projectContextMenu.x,
+            top: projectContextMenu.y,
+            minWidth: 136,
+            zIndex: 10000,
+            background: "var(--color-panel)",
+            border: "1px solid var(--color-hover)",
+            boxShadow: "0 8px 24px rgba(0,0,0,0.42)",
+            padding: 4,
+          }}
+          onPointerDown={(event) => event.stopPropagation()}
+          onContextMenu={(event) => event.preventDefault()}
+        >
+          {projectMenuItems.map((item) => (
+            <button
+              key={item.id}
+              role="menuitem"
+              type="button"
+              onClick={() => void handleProjectContextAction(item.id)}
+              style={{
+                width: "100%",
+                display: "flex",
+                alignItems: "center",
+                gap: 8,
+                padding: "7px 9px",
+                border: "none",
+                background: "transparent",
+                color: item.destructive ? "var(--color-warning)" : "var(--color-text-secondary)",
+                cursor: "pointer",
+                fontSize: 12,
+                textAlign: "left",
+              }}
+              onMouseEnter={(event) => { event.currentTarget.style.background = "var(--color-hover)"; }}
+              onMouseLeave={(event) => { event.currentTarget.style.background = "transparent"; }}
+            >
+              {item.id === "toggle-star"
+                ? <Star size={14} strokeWidth={1.5} />
+                : <Trash2 size={14} strokeWidth={1.5} />}
+              <span>{item.label}</span>
+            </button>
+          ))}
+        </div>
+      )}
 
       {overlayPos !== null && activeItem && (
         <div style={{

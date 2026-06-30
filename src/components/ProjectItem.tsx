@@ -22,11 +22,13 @@ interface ProjectItemProps {
   filterActive: boolean;
   dragZone: DragZone;
   dragTargetId: string | null;
+  onOpenContextMenu: (projectId: string, x: number, y: number) => void;
 }
 
 export function ProjectItem({
   item, project: p, isSource, isOnto, isInOntoGroup,
   ontoColor, savedSelected, itemId, selectProject, filterActive,
+  onOpenContextMenu,
 }: ProjectItemProps) {
   const isGrouped = item.isGrouped;
   const groupColor = item.groupColor;
@@ -47,6 +49,11 @@ export function ProjectItem({
           : "none",
         userSelect: "none",
       }}
+        onContextMenu={(e: React.MouseEvent<HTMLDivElement>) => {
+          e.preventDefault();
+          e.stopPropagation();
+          onOpenContextMenu(itemId, e.clientX, e.clientY);
+        }}
         onMouseEnter={(e: React.MouseEvent<HTMLDivElement>) => { if (sel !== true && !highlight) e.currentTarget.style.background = "var(--color-card)"; }}
         onMouseLeave={(e: React.MouseEvent<HTMLDivElement>) => { if (sel !== true && !highlight) e.currentTarget.style.background = "transparent"; }}
       >
