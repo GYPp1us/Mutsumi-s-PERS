@@ -20,6 +20,10 @@ export const en = {
   noProjects: "No projects yet. Add one with the + button.",
   starred: "Starred",
   noStarred: "No starred projects yet.",
+  starProject: "Star",
+  unstarProject: "Unstar",
+  deleteProject: "Delete",
+  deleteProjectConfirm: (name: string) => `Remove "${name}" from PRES? The project folder will not be deleted.`,
 
   selectProject: "Select a project",
   launchEnv: "Launch Environment",
@@ -154,6 +158,10 @@ export const zh: typeof en = {
   noProjects: "\u6682\u65E0\u9879\u76EE\u3002\u70B9\u51FB + \u6DFB\u52A0\u3002",
   starred: "\u661F\u6807\u9879\u76EE",
   noStarred: "\u6682\u65E0\u661F\u6807\u9879\u76EE\u3002",
+  starProject: "\u6DFB\u52A0\u661F\u6807",
+  unstarProject: "\u53D6\u6D88\u661F\u6807",
+  deleteProject: "\u5220\u9664",
+  deleteProjectConfirm: (name: string) => `\u4ECE PRES \u79FB\u9664\u300C${name}\u300D\uFF1F\u4E0D\u4F1A\u5220\u9664\u9879\u76EE\u6587\u4EF6\u5939\u3002`,
 
   selectProject: "\u8BF7\u9009\u62E9\u4E00\u4E2A\u9879\u76EE",
   launchEnv: "\u542F\u52A8\u73AF\u5883",
